@@ -6,7 +6,7 @@ class BiasOnly(nn.Module):
         self.bias = nn.Parameter(torch.zeros(features))
         
     def forward(self, x):
-        return x + self.bias
+        return self.bias # the resnet part is in ResidualBlock
 
 if __name__ == '__main__':
     example_input = torch.randn(10)

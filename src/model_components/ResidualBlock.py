@@ -1,5 +1,5 @@
 import torch
-import BiasOnly
+from BiasOnly import BiasOnly
 
 class ResidualBlock(torch.nn.Module):
     def __init__(self, input_dim:int, hidden_layers:int, hidden_dim:int|None=None, activation=torch.nn.ReLU()):
@@ -52,3 +52,35 @@ class ResidualBlock(torch.nn.Module):
     
     def forward(self, x):
         return self.sequential(x) + x
+
+if __name__ == '__main__':
+    # Test basic functionality
+    input_dim = 5
+    batch_size = 3
+    
+    # Create test input
+    x = torch.randn(batch_size, input_dim)
+    print(f"Input shape: {x.shape}")
+    
+    # Test bias-only case (hidden_layers = -1)
+    bias_only = ResidualBlock(input_dim=input_dim, hidden_layers=-1)
+    output_bias = bias_only(x)
+    print(f"\nBias-only case:")
+    print(f"Output shape: {output_bias.shape}")
+    print(f"Residual difference: {torch.norm(output_bias - x)}")  # Should be small initially due to zero init
+    
+    # Test single linear layer case (hidden_layers = 0)
+    single_layer = ResidualBlock(input_dim=input_dim, hidden_layers=0)
+    output_single = single_layer(x)
+    print(f"\nSingle layer case:")
+    print(f"Output shape: {output_single.shape}")
+    print(f"Residual difference: {torch.norm(output_single - x)}")  # Should be small initially due to zero init
+    
+    # Test multi-layer case with different hidden dimension
+    hidden_dim = 10
+    multi_layer = ResidualBlock(input_dim=input_dim, hidden_layers=2, hidden_dim=hidden_dim)
+    output_multi = multi_layer(x)
+    print(f"\nMulti-layer case:")
+    print(f"Output shape: {output_multi.shape}")
+    print(f"Residual difference: {torch.norm(output_multi - x)}")  # Should be small initially due to zero init
+
