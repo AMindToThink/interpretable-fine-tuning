@@ -1,8 +1,8 @@
 import torch
-from BiasOnly import BiasOnly
+from .BiasOnly import BiasOnly
 
 class ResidualBlock(torch.nn.Module):
-    def __init__(self, input_dim:int, hidden_layers:int, hidden_dim:int|None=None, activation=torch.nn.ReLU()):
+    def __init__(self, input_dim:int, hidden_layers:int, hidden_dim:int|None=None, activation=torch.nn.ReLU(), name:str=""):
         """A flexible residual neural network block that maintains input/output dimension compatibility.
     
         This block implements a residual connection of the form output = F(x) + x, where F is a configurable
@@ -16,6 +16,7 @@ class ResidualBlock(torch.nn.Module):
                 * >0: Creates that many hidden layers with activation functions between them
             hidden_dim (int, optional): Dimension of hidden layers. If None, uses input_dim.
             activation (torch.nn.Module): Activation function to use between layers. Defaults to ReLU.
+            name (str): Optional name for the block. Defaults to empty string.
         
         Example:
             >>> block = ResidualBlock(input_dim=512, hidden_layers=2, hidden_dim=1024)
@@ -23,6 +24,7 @@ class ResidualBlock(torch.nn.Module):
             >>> output = block(x)  # Shape: (32, 512)
         """
         super().__init__()
+        self.name = name
         assert input_dim > 0
         assert hidden_layers >= -1
         assert hidden_dim is None or hidden_dim > 0
@@ -83,4 +85,5 @@ if __name__ == '__main__':
     print(f"\nMulti-layer case:")
     print(f"Output shape: {output_multi.shape}")
     print(f"Residual difference: {torch.norm(output_multi - x)}")  # Should be small initially due to zero init
+    import pdb;pdb.set_trace()
 
