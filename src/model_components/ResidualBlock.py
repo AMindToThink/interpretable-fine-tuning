@@ -1,5 +1,6 @@
 import torch
 from .BiasOnly import BiasOnly
+from .LoRALinear import LoRALinear
 
 class ResidualBlock(torch.nn.Module):
     def __init__(self, input_dim:int, hidden_layers:int, hidden_dim:int|None=None, activation=torch.nn.ReLU(), name:str=""):
@@ -15,6 +16,7 @@ class ResidualBlock(torch.nn.Module):
                 * 0: Single linear transformation
                 * >0: Creates that many hidden layers with activation functions between them
             hidden_dim (int, optional): Dimension of hidden layers. If None, uses input_dim.
+            lora_r (int, optional): The rank of the matrices for the FFNN. Depth must be greater than -1.
             activation (torch.nn.Module): Activation function to use between layers. Defaults to ReLU.
             name (str): Optional name for the block. Defaults to empty string.
         
