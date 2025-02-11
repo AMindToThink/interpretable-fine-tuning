@@ -30,6 +30,8 @@ class IsaerftConfig():#(PeftConfig):
             raise ValueError("`hidden_size` must be None if there are no hidden parameters! (ie, when `depth` is less than 1)")
         if self.depth < 0 and (lora_r is not None):
             raise ValueError("`lora_r` must be None if there are no matrices! (ie, when `depth` is less than 0)")
+        if len(self.target_hooks) == 0:
+            raise ValueError("`target_hooks` must have a value")
 
 
 
