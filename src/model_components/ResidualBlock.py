@@ -32,6 +32,7 @@ class ResidualBlock(torch.nn.Module):
         assert hidden_dim is None or hidden_dim > 0
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim if hidden_dim else input_dim
+        self.hidden_layers = hidden_layers
         self.activation = activation
         sequential = []
         if hidden_layers == -1:

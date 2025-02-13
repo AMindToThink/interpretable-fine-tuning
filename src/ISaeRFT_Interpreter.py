@@ -3,7 +3,8 @@ from torch import Tensor
 from torch.nn import Linear
 from model_components.LoRALinear import LoRALinear
 from model_components.ResidualBlock import ResidualBlock
-
+from model_components.BiasOnly import BiasOnly
+interpretation_types = {'expectation', 'absolute'}
 class ISaeRFT_Interpreter():
     """
         Class that turns the learned parameters into human-readable algorithms and outputs.
@@ -15,26 +16,32 @@ class ISaeRFT_Interpreter():
         self.release_id = release_id
         self.sae_id = sae_id
 
-    def interpret_bias(self, bias:Tensor):
+    def interpret_bias(self, bias:BiasOnly, interpretation_type='expectation'):
         """
         Interpretation for BiasOnly biases or Residual blocks where hidden_layers = -1.
         
         Args:
             bias (Tensor): The bias vector of the linear transformation. Shape should be rank 1 (latent_dim).
         """
-        assert len(bias.shape) == 1, "Can only interpret bias vectors with interpret_bias. That means the shape input must be rank 1."
+        # Decided to go with taking the components instead of taking the vectors.
+        # assert len(bias.shape) == 1, "Can only interpret bias vectors with interpret_bias. That means the shape input must be rank 1."
+        assert interpretation_type in interpretation_types, f"No such interpretation type '{interpretation_type}'. Must be in {interpretation_types}"
+        vector = bias.bias.data
+
+
         raise NotImplementedError()
 
-    def interpret_linear(self, weights:Tensor):
+    def interpret_linear(self,  linear:Linear | LoRALinear, interpretation_type='expectation'):
         """
         Interpretation for ResidualBlock with hidden_layers = 0.
 
         Args:
-            weights (Tensor): The weight matrix of the linear transformation. Shape should be square (latent_dim, latent_dim).
+            linear (Linear | LoRALinear): Interpret a matrix multiplication. Shape should be square (latent_dim, latent_dim).
         """
+        assert interpretation_type in interpretation_types, f"No such interpretation type '{interpretation_type}'. Must be in {interpretation_types}"
         raise NotImplementedError()
     
-    def interpret_1_hidden_layerFFNN(self, linear1:Linear | LoRALinear, linear2:Linear | LoRALinear):
+    def interpret_1_hidden_layerFFNN(self, linear1:Linear | LoRALinear, linear2:Linear | LoRALinear, interpretation_type='expectation'):
         """
         Interpretation for ResidualBlock with hidden_layers = 1. 
 
@@ -42,9 +49,19 @@ class ISaeRFT_Interpreter():
             linear1: (torch.nn.Linear | LoRALinear)
             linear2: (torch.nn.Linear | LoRALinear)
         """
+        assert interpretation_type in interpretation_types, f"No such interpretation type '{interpretation_type}'. Must be in {interpretation_types}"
 
         bias_interpretation = self.interpret_bias(linear2.bias())
         raise NotImplementedError()
     
-    def interpret_ResidualBlock(self, rb:ResidualBlock):
-        raise NotImplementedError()
+    def interpret_ResidualBlock(self, rb:ResidualBlock, interpretation_type='expectation'):
+        assert interpretation_type in interpretation_types, f"No such interpretation type '{interpretation_type}'. Must be in {interpretation_types}"
+
+        if rb.hidden_layers == -1:
+            return self.interpret_bias(rb.sequential[0].bias.data, interpretation_type=interpretation_type)
+        if rb.hidden_layers == 0:
+            return self.interpret_linear(rb.sequential[0], interpretation=interpretation_type)
+        if rb.hidden_layers == 1:
+            return self.interpret_1_hidden_layerFFNN(rb.sequential[0], rb.sequential[1], interpretation_type=interpretation_type)
+        raise ValueError("This ResidualBlock is too deep! Interpretations are only available for rb with hidden layers in [-1,0,1]. If you have a way to interpret deeper networks, feel free to implement!")
+
