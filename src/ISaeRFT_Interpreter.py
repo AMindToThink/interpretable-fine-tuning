@@ -16,7 +16,7 @@ class ISaeRFT_Interpreter():
         self.release_id = release_id
         self.sae_id = sae_id
 
-    def interpret_bias(self, bias:BiasOnly, interpretation_type='expectation'):
+    def interpret_bias(self, bias:BiasOnly, interpretation_type='expectation', top_k:int | None=20):
         """
         Interpretation for BiasOnly biases or Residual blocks where hidden_layers = -1.
         
@@ -28,6 +28,15 @@ class ISaeRFT_Interpreter():
         assert interpretation_type in interpretation_types, f"No such interpretation type '{interpretation_type}'. Must be in {interpretation_types}"
         vector = bias.bias.data
 
+        if interpretation_type == 'absolute':
+            # Sort indices by absolute values in descending order
+            sorted_indices = torch.argsort(torch.abs(vector), descending=True)
+        
+        if interpretation_type == 'expectation':
+            raise NotImplementedError("Need to make a request to Neuronpedia's get feature and look at hist_data")
+        
+        for feature in range(top_k):
+            pass
 
         raise NotImplementedError()
 
