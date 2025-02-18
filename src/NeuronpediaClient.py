@@ -12,7 +12,7 @@ class NeuronpediaClient:
             api_key: Your Neuronpedia API key
             base_url: Base URL for the API (defaults to https://www.neuronpedia.org)
         """
-        self.base_url = base_url
+        self.base_url = base_url    
         self.headers = {"X-Api-Key": api_key}
     
     def get_feature(self, model_id: str, layer: str, index: int) -> Dict[str, Any]:
@@ -31,6 +31,7 @@ class NeuronpediaClient:
             requests.exceptions.RequestException: If the API request fails
             KeyError: If the response is missing expected data
         """
+        # example: https://www.neuronpedia.org/api/feature/gemma-2-2b/2-gemmascope-mlp-65k/19964 (expressions of happiness and joy)
         url = f"{self.base_url}/api/feature/{model_id}/{layer}/{index}"
         response = requests.get(url, headers=self.headers)
         response.raise_for_status()
