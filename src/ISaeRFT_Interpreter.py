@@ -6,7 +6,6 @@ from model_components.LoRALinear import LoRALinear
 from model_components.ResidualBlock import ResidualBlock
 from model_components.BiasOnly import BiasOnly
 from NeuronpediaClient import NeuronpediaClient
-interpretation_types = {'expectation', 'absolute'}
 class ISaeRFT_Interpreter():
     """
         Class that turns the learned parameters into human-readable algorithms and outputs.
@@ -24,6 +23,10 @@ class ISaeRFT_Interpreter():
         self.layer = layer
         self.neuronpedia_client = NeuronpediaClient(api_key=os.environ['NEURONPEDIA_API_KEY'] if neuronpedia_api_key is None else neuronpedia_api_key)
 
+    @property
+    def bias_interpretation_types(self):
+        return frozenset({'absolute', 'delta_magnitude'})
+
     def interpret_bias(self, vector:Tensor, interpretation_type='expectation', top_k:int | None=20):
         """
         Interpretation for BiasOnly biases or Residual blocks where hidden_layers = -1.
@@ -35,7 +38,7 @@ class ISaeRFT_Interpreter():
         """
         # Decided to go with the vectors instead of the components.
         # assert len(bias.shape) == 1, "Can only interpret bias vectors with interpret_bias. That means the shape input must be rank 1."
-        assert interpretation_type in interpretation_types, f"No such interpretation type '{interpretation_type}'. Must be in {interpretation_types}"
+        assert interpretation_type in self.bias_interpretation_types, f"No such interpretation type '{interpretation_type}'. Must be in {self.bias_interpretation_types}"
 
         if interpretation_type == 'absolute':
             # Sort indices by absolute values in descending order
