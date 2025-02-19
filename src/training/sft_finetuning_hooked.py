@@ -19,15 +19,15 @@ This notebook demonstrates how to fine-tune the `HuggingFaceTB/SmolLM2-135M` mod
     <p>🦁 Select a dataset that relates to a real world use case your interested in</p>
 </div>
 """
-
+#%%
 # Install the requirements in Google Colab
 # !pip install transformers datasets trl huggingface_hub
-
+raise NotImplementedError("Doing non-hooked first")
 # Authenticate to Hugging Face
 import os
 from huggingface_hub import login
 login(token=os.environ['HUGGINGFACE_KEY'])
-
+import pdb;pdb.set_trace()
 # for convenience you can create an environment variable containing your hub token as HF_TOKEN
 
 # Import necessary libraries
@@ -36,6 +36,15 @@ from datasets import load_dataset
 from trl import SFTConfig, SFTTrainer, setup_chat_format
 import torch
 
+from sae_lens import SAE, HookedSAETransformer
+from torch import Tensor
+from transformer_lens import loading_from_pretrained
+from transformer_lens.hook_points import HookPoint
+from transformers import AutoTokenizer
+import torch.utils.checkpoint as checkpoint
+
+from ..model_components import BiasOnly, ResidualBlock
+#%%
 device = (
     "cuda"
     if torch.cuda.is_available()
@@ -43,17 +52,18 @@ device = (
 )
 
 # Load the model and tokenizer
-model_name = "HuggingFaceTB/SmolLM2-135M"
-model = AutoModelForCausalLM.from_pretrained(
-    pretrained_model_name_or_path=model_name
-).to(device)
+model_name = "google/gemma-2-2b"
+model = HookedSAETransformer.from_pretrained('google/gemma-2-2b', device=device)
+# model = AutoModelForCausalLM.from_pretrained(
+#     pretrained_model_name_or_path=model_name
+# ).to(device)
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_name)
 
 # Set up the chat format
 model, tokenizer = setup_chat_format(model=model, tokenizer=tokenizer)
 
 # Set our name for the finetune to be saved &/ uploaded to
-finetune_name = "SmolLM2-FT-MyDataset"
+finetune_name = "hooked_SmolLM2-FT-MyDataset"
 finetune_tags = ["smol-course", "module_1"]
 
 """# Generate with the base model

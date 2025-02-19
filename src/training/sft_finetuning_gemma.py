@@ -43,17 +43,17 @@ device = (
 )
 
 # Load the model and tokenizer
-model_name = "HuggingFaceTB/SmolLM2-135M"
+model_name = "google/gemma-2-2b"
 model = AutoModelForCausalLM.from_pretrained(
-    pretrained_model_name_or_path=model_name
+    pretrained_model_name_or_path=model_name, attn_implementation='eager'
 ).to(device)
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_name)
 
 # Set up the chat format
 model, tokenizer = setup_chat_format(model=model, tokenizer=tokenizer)
-
+dataset_name = "HuggingFaceTB/smoltalk"
 # Set our name for the finetune to be saved &/ uploaded to
-finetune_name = "SmolLM2-FT-MyDataset"
+finetune_name = f"{model_name.split('/')[0]}-FT-{dataset_name}"
 finetune_tags = ["smol-course", "module_1"]
 
 """# Generate with the base model
@@ -85,7 +85,7 @@ We will load a sample dataset and format it for training. The dataset should be 
 from datasets import load_dataset
 
 # TODO: define your dataset and config using the path and name parameters
-ds = load_dataset(path="HuggingFaceTB/smoltalk", name="everyday-conversations")
+ds = load_dataset(path=dataset_name, name="everyday-conversations")
 
 # TODO: 🦁 If your dataset is not in a format that TRL can convert to the chat template, you will need to process it. Refer to the [module](../chat_templates.md)
 
@@ -98,7 +98,8 @@ The `SFTTrainer` is configured with various parameters that control the training
 sft_config = SFTConfig(
     output_dir="./sft_output",
     max_steps=1000,  # Adjust based on dataset size and desired training duration
-    per_device_train_batch_size=4,  # Set according to your GPU memory capacity
+    per_device_train_batch_size=3,  # Set according to your GPU memory capacity
+    max_seq_length=64, # Is changed to max_length in new versions of trl
     learning_rate=5e-5,  # Common starting point for fine-tuning
     logging_steps=10,  # Frequency of logging training metrics
     save_steps=100,  # Frequency of saving model checkpoints
