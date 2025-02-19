@@ -27,7 +27,9 @@ class SmartLerp(nn.Module):
         t = torch.sigmoid(self.t_logits)
 
         # multiply target value by .5 to cancel out the times 2.
-        return 2 * (x + t * (.5 * self.target_value - x))
+        # return 2 * (x + t * (.5 * self.target_value - x))
+        # I did some experiments with a plot and I think that this has some better properties than the original (it actually goes from the start (when x = .5) to the target (x = 1)), but lacks the gradients through target_value :( I still think this is an improvement, since there are still gradients through t.
+        return (x + 2*(t - .5) * (self.target_value - x))
 
 def test_smart_lerp():
     # Create SmartLerp instance
@@ -54,6 +56,13 @@ def test_smart_lerp():
     # Check gradients aren't all zeros
     print("Checking gradients aren't zero")
     assert not torch.allclose(lerp.t_logits.grad, torch.zeros_like(lerp.t_logits.grad)), "t_logits gradients shouldn't be all zeros"
+    # Take an optimizer step
+    optimizer = torch.optim.Adam(lerp.parameters(), lr=1)
+    optimizer.step()
+    assert not torch.allclose(lerp.t_logits, torch.zeros_like(lerp.t_logits)), "Why is t_logits still zero when there were gradients through them?"
+    y = lerp(x)
+    loss = y.sum()
+    loss.backward()
     assert not torch.allclose(lerp.target_value.grad, torch.zeros_like(lerp.target_value.grad)), "target_value gradients shouldn't be all zeros"
     
 if __name__ == "__main__":
