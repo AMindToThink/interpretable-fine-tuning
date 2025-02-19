@@ -1,28 +1,30 @@
 import torch
 import torch.nn as nn
+from dataclasses import dataclass
 
+@dataclass
+class SoftSwitchInitializationHighA():
+    """Class used for initializing the SoftSwitch module with a high a value, which makes the softswitch mostly be an identity function to start."""
+    a:int = 200
+    
 class SoftSwitch(nn.Module):
-    def __init__(self, a=0.0, b=1.0, k=1.0, trainable=True):
+    def __init__(self, dim:int, initialization):
         """
         Initializes the smooth transition module.
         
         Args:
-            a (float): Threshold parameter. Default is 0.0.
-            b (float): Value to output when x is above the threshold. Default is 1.0.
-            k (float): Steepness of the transition. Default is 1.0.
-            trainable (bool): Whether to make a, b, and k trainable. Default is True.
+            dim:int The size of the vector to process.
         """
         super(SoftSwitch, self).__init__()
         
-        if trainable:
-            self.a = nn.Parameter(torch.tensor(a, dtype=torch.float32))
-            self.b = nn.Parameter(torch.tensor(b, dtype=torch.float32))
-            self.k = nn.Parameter(torch.tensor(k, dtype=torch.float32))
+        if isinstance(initialization, SoftSwitchInitializationHighA):
+            
+            self.a = nn.Parameter(torch.fill(dim, initialization.a, dtype=torch.float32))
+            self.b = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
+            self.k = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
         else:
-            # Use buffers if parameters should remain fixed
-            self.register_buffer('a', torch.tensor(a, dtype=torch.float32))
-            self.register_buffer('b', torch.tensor(b, dtype=torch.float32))
-            self.register_buffer('k', torch.tensor(k, dtype=torch.float32))
+            raise NotImplementedError("No initialization types other than SoftSwitchInitializationHighA are implemented")
+
     
     def forward(self, x):
         """
@@ -39,22 +41,3 @@ class SoftSwitch(nn.Module):
         # Return the smoothly transitioned value.
         return x + (self.b - x) * smooth_step
 
-# Example usage:
-if __name__ == "__main__":
-    # Create a sample input tensor
-    x = torch.linspace(-5, 5, steps=100)
-    # Initialize the module
-    module = SoftSwitch(a=0.0, b=2.0, k=3.0)
-    # Compute the output
-    y = module(x)
-
-    # Create and save plot
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(10, 6))
-    plt.plot(x.numpy(), y.detach().numpy())
-    plt.grid(True)
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.title('SoftSwitch Function')
-    plt.savefig('soft_switch_plot.png')
-    plt.close()
