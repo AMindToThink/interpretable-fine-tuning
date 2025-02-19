@@ -8,23 +8,24 @@ class SoftSwitchInitializationHighA():
     a:int = 200
     
 class SoftSwitch(nn.Module):
-    def __init__(self, dim:int, initialization):
+    def __init__(self, dim:int, initialization, device=None, dtype=None):
         """
         Initializes the smooth transition module.
         
         Args:
             dim:int The size of the vector to process.
+            initialization: Initialization configuration object
+            device: Device to place tensors on. Default: None
+            dtype: Data type for tensors. Default: None
         """
         super(SoftSwitch, self).__init__()
-        
+        self.dim = dim
         if isinstance(initialization, SoftSwitchInitializationHighA):
-            
-            self.a = nn.Parameter(torch.fill(dim, initialization.a, dtype=torch.float32))
-            self.b = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
-            self.k = nn.Parameter(torch.zeros(dim, dtype=torch.float32))
+            self.a = nn.Parameter(torch.full((dim,), initialization.a, dtype=dtype, device=device))
+            self.b = nn.Parameter(torch.zeros(dim, dtype=dtype, device=device))
+            self.k = nn.Parameter(torch.zeros(dim, dtype=dtype, device=device))
         else:
             raise NotImplementedError("No initialization types other than SoftSwitchInitializationHighA are implemented")
-
     
     def forward(self, x):
         """
