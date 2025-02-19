@@ -12,6 +12,8 @@ class SmartClamp(nn.Module):
             dtype: what data type to use (pytorch)
 
         Wow, I feel smart that I realized I can multiply by 2 to have my initial identity funciton and my nonzero gradients. -MK
+
+        Notes: It might be interesting to break clamp_value into a mean_clamp_value and std_clamp_value, so that occasionally a good clamp would happen and the training would learn to clamp to higher values (at the moment, there's a local minima where components that are optimized by clamping at or near zero are clamped there but values that have an optimal clamp value at a higher value (eg 100) are never activated. The loss landscape here is interesting.
         """
         super().__init__()
         self.dim = dim
@@ -23,7 +25,9 @@ class SmartClamp(nn.Module):
     def forward(self, x):
         # sigmoid of t_logits so that the values are between 0 and 1 (lerping a negative amount or more than 1 would be weird and harder to interpret. This is plenty expressive)
         t = torch.sigmoid(self.t_logits)
-        return 2 * (x + t * (self.clamp_value - x))
+
+        # multiply clamp value by .5 to cancel out the times 2.
+        return 2 * (x + t * (.5 * self.clamp_value - x))
 
 def test_smart_clamp():
     # Create SmartClamp instance
