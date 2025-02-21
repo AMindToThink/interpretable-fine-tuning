@@ -59,6 +59,8 @@ class ISaeRFT_Interpreter():
         assert interpretation_type in self.bias_interpretation_types, f"No such interpretation type '{interpretation_type}'. Must be in {self.bias_interpretation_types}"
         assert len(vector.shape) == 1, "Can only interpret bias vectors with interpret_bias. That means the shape input must be rank 1." 
         assert self.sae.cfg.d_sae == len(vector), "The dimension of the sae and the length of the bias vector do not match."
+        if 'gemma-2' in self.sae.cfg.neuronpedia_id.split('/')[0] and interpretation_type == "L2":
+            print("Warning: the following sae has decryption matrices that have rows norming to 1, so using L2 and using absolute are the same. Maybe something you should check? gemma-scope-2b-pt-res-canonical")
         import time
         start = time.time()
         print("starting importance calculation")
@@ -86,7 +88,7 @@ class ISaeRFT_Interpreter():
         feature_results = []
         for rank, index in enumerate(indices_to_check):
             client_json = self.neuronpedia_client.get_feature(neuronpedia_id=self.sae.cfg.neuronpedia_id, index=sorted_indices[rank])
-            feature_results.append({'interpretation_type':interpretation_type, 'rank':rank, 'index':index.item(), 'value':vector[index].item(), 'explanation': client_json['explanations'][0]['description']})
+            feature_results.append({'interpretation_type':interpretation_type, 'rank':rank, 'index':index.item(), 'value':vector[index].item(), 'importance':importance[index].item(), 'explanation': client_json['explanations'][0]['description']})
 
         return feature_results
 
@@ -131,5 +133,7 @@ if __name__ == "__main__":
     for i in range(4):
         v = torch.randn(d_sae)
         interpretations = myinter.interpret_bias(v, 'L2', 3)
+        print(interpretations)
+        interpretations = myinter.interpret_bias(v, 'absolute', 3)
         print(interpretations)
     # import pdb;pdb.set_trace()
