@@ -40,8 +40,9 @@ class ISaeRFT_Interpreter():
         return {'absolute': torch.abs, 'L2': self.L2Importance}
     
     def L2Importance(self, vector: Tensor) -> Tensor:
+        # import pdb;pdb.set_trace()
         broadcasted = self.sae.W_dec.T * vector # broadcast together
-        importance = broadcasted.norm(dim=1)
+        importance = broadcasted.norm(dim=0)
         return importance
 
     def interpret_bias(self, vector:Tensor, interpretation_type='expectation', top_k:int | None=20):
@@ -127,6 +128,8 @@ if __name__ == "__main__":
     mysae = SAE.from_pretrained(release="gemma-scope-2b-pt-res-canonical", sae_id="layer_25/width_16k/canonical", device='cpu')[0]
     myinter = ISaeRFT_Interpreter(mysae)
     d_sae = mysae.cfg.d_sae
-    v = torch.randn(d_sae)
-    interpretations = myinter.interpret_bias(v, 'L2', 3)
-    print(interpretations)
+    for i in range(4):
+        v = torch.randn(d_sae)
+        interpretations = myinter.interpret_bias(v, 'L2', 3)
+        print(interpretations)
+    # import pdb;pdb.set_trace()
