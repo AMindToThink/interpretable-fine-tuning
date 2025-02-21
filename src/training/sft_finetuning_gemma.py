@@ -34,6 +34,8 @@ login(token=os.environ['HUGGINGFACE_KEY'])
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import load_dataset
 from trl import SFTConfig, SFTTrainer, setup_chat_format
+from peft import LoraConfig
+
 import torch
 
 device = (
@@ -45,7 +47,7 @@ device = (
 # Load the model and tokenizer
 model_name = "google/gemma-2-2b"
 model = AutoModelForCausalLM.from_pretrained(
-    pretrained_model_name_or_path=model_name, attn_implementation='eager'
+    pretrained_model_name_or_path=model_name#, attn_implementation='eager'
 ).to(device)
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_name)
 
@@ -53,7 +55,7 @@ tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_na
 model, tokenizer = setup_chat_format(model=model, tokenizer=tokenizer)
 dataset_name = "HuggingFaceTB/smoltalk"
 # Set our name for the finetune to be saved &/ uploaded to
-finetune_name = f"{model_name.split('/')[0]}-FT-{dataset_name}"
+finetune_name = f"{model_name.split('/')[1]}-FT-{dataset_name}"
 finetune_tags = ["smol-course", "module_1"]
 
 """# Generate with the base model
@@ -93,13 +95,20 @@ ds = load_dataset(path=dataset_name, name="everyday-conversations")
 
 The `SFTTrainer` is configured with various parameters that control the training process. These include the number of training steps, batch size, learning rate, and evaluation strategy. Adjust these parameters based on your specific requirements and computational resources.
 """
-
+peft_config = LoraConfig(
+    r=4,
+    lora_alpha=32,
+    lora_dropout=0.05,
+    target_modules=['model.layers.25.mlp.gate_proj', 'model.layers.25.mlp.up_proj', 'model.layers.25.mlp.down_proj'], # out of 25 layers total
+    modules_to_save=["lm_head", "embed_token"],
+    task_type="CAUSAL_LM",
+)
 # Configure the SFTTrainer
 sft_config = SFTConfig(
     output_dir="./sft_output",
     max_steps=1000,  # Adjust based on dataset size and desired training duration
-    per_device_train_batch_size=3,  # Set according to your GPU memory capacity
-    max_seq_length=64, # Is changed to max_length in new versions of trl
+    per_device_train_batch_size=1,  # Set according to your GPU memory capacity
+    max_seq_length=2, # Is changed to max_length in new versions of trl
     learning_rate=5e-5,  # Common starting point for fine-tuning
     logging_steps=10,  # Frequency of logging training metrics
     save_steps=100,  # Frequency of saving model checkpoints
@@ -109,8 +118,9 @@ sft_config = SFTConfig(
         True if device == "mps" else False
     ),  # Use MPS for mixed precision training
     hub_model_id=finetune_name,  # Set a unique name for your model
+    fp16=True,
 )
-
+model.gradient_checkpointing_enable() # I hate this, but I keep running out of memory.
 # Initialize the SFTTrainer
 trainer = SFTTrainer(
     model=model,
@@ -118,6 +128,7 @@ trainer = SFTTrainer(
     train_dataset=ds["train"],
     tokenizer=tokenizer,
     eval_dataset=ds["test"],
+    peft_config=peft_config,
 )
 
 # TODO: 🦁 🐕 align the SFTTrainer params with your chosen dataset. For example, if you are using the `bigcode/the-stack-smol` dataset, you will need to choose the `content` column`

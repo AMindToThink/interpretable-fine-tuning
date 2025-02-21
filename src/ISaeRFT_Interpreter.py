@@ -1,6 +1,7 @@
 # Standard imports
 import os
 import torch
+from typing import Callable
 from torch import Tensor
 from torch.nn import Linear
 # Odd imports
@@ -21,9 +22,9 @@ class ISaeRFT_Interpreter():
         Predicted help:
         If your outputs don't make sense, try checking that the release_id and sae_id are correct and applying L1 loss to the training to encourage sparsity.
     """
-    def __init__(self, model_id:str, layer:str, sae:SAE|None, release:str='', sae_id:str='', neuronpedia_api_key:str|None=None):
+    def __init__(self, model_id:str, layer:str, sae:SAE|None=None, release:str='', sae_id:str='', neuronpedia_api_key:str|None=None):
         assert (sae is None) != (release and sae_id), "Must either give an sae or a release and sae_id and not both."
-        assert not (release and sae_id) or sae_id.split('/')[0] == layer, "Clearly one of us doesn't understand the relationship between sae_id and layer. Please check!"
+        # assert not (release and sae_id) or sae_id.split('/')[0] == layer, "Clearly one of us doesn't understand the relationship between sae_id and layer. Please check!"
         self.model_id = model_id
         # self.release_id = release_id
         self.layer = layer
@@ -32,7 +33,16 @@ class ISaeRFT_Interpreter():
 
     @property
     def bias_interpretation_types(self):
-        return frozenset({'absolute', 'delta_magnitude'})
+        return frozenset({'absolute', 'L2'})
+    
+    @property
+    def name_importance_map(self):
+        return {'absolute': torch.abs, 'L2': self.L2Importance}
+    
+    def L2Importance(self, vector: Tensor) -> Tensor:
+        broadcasted = self.sae.W_dec * vector # broadcast together
+        importance = broadcasted.norm(dim=1)
+        return importance
 
     def interpret_bias(self, vector:Tensor, interpretation_type='expectation', top_k:int | None=20):
         """
@@ -49,10 +59,16 @@ class ISaeRFT_Interpreter():
         assert len(vector.shape) == 1, "Can only interpret bias vectors with interpret_bias. That means the shape input must be rank 1." 
         assert self.sae.cfg.d_sae == len(vector), "The dimension of the sae and the length of the bias vector do not match."
 
-        if interpretation_type == 'absolute':
-            # Sort indices by absolute values in descending order
-            sorted_indices = torch.argsort(torch.abs(vector), descending=True)
+        importance = self.name_importance_map[interpretation_type](vector)
+        sorted_indices = torch.argsort(importance, descending=True)
+        # if interpretation_type == 'absolute':
+        #     # Sort indices by absolute values in descending order
+        #     sorted_indices = torch.argsort(torch.abs(vector), descending=True)
         
+        # if interpretation_type == 'L2':
+        #     broadcasted = self.sae.W_dec * vector # broadcast together
+        #     importance = broadcasted.norm(dim=1)
+        #     sorted_indices = torch.argsort(importance, descending=True)
         # if interpretation_type == 'expectation':
         #     for i, value in enumerate(vector):
         #         client_json = self.neuronpedia_client.get_feature(model_id=self.model_id, layer=self.layer, index=i)
