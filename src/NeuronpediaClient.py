@@ -15,11 +15,12 @@ class NeuronpediaClient:
         self.base_url = base_url    
         self.headers = {"X-Api-Key": api_key}
     
-    def get_feature(self, model_id: str, layer: str, index: int) -> Dict[str, Any]:
+    def get_feature(self, index: int, neuronpedia_id:str='', model_id: str='', layer: str='') -> Dict[str, Any]:
         """
         Fetch feature data from Neuronpedia.
         
         Args:
+            neuronpedia_id: combines the model_id and the layer
             model_id: The model ID (e.g., 'gpt2-small')
             layer: The layer/SAE ID (e.g., '0-res-jb')
             index: The feature index
@@ -31,8 +32,10 @@ class NeuronpediaClient:
             requests.exceptions.RequestException: If the API request fails
             KeyError: If the response is missing expected data
         """
+        assert (not (bool(neuronpedia_id) and bool(model_id))) and (not (bool(neuronpedia_id) and bool(layer))), "neuronpedia_id replaces both model_id and layer"
         # example: https://www.neuronpedia.org/api/feature/gemma-2-2b/2-gemmascope-mlp-65k/19964 (expressions of happiness and joy)
-        url = f"{self.base_url}/api/feature/{model_id}/{layer}/{index}"
+        neuronpedia_id = f"{model_id}/{layer}" if not neuronpedia_id else neuronpedia_id
+        url = f"{self.base_url}/api/feature/{neuronpedia_id}/{index}"
         response = requests.get(url, headers=self.headers)
         response.raise_for_status()
         return response.json()

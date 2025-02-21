@@ -22,14 +22,14 @@ class ISaeRFT_Interpreter():
         Predicted help:
         If your outputs don't make sense, try checking that the release_id and sae_id are correct and applying L1 loss to the training to encourage sparsity.
     """
-    def __init__(self, model_id:str, layer:str, sae:SAE|None=None, release:str='', sae_id:str='', neuronpedia_api_key:str|None=None):
-        assert (sae is None) != (release and sae_id), "Must either give an sae or a release and sae_id and not both."
-        # assert not (release and sae_id) or sae_id.split('/')[0] == layer, "Clearly one of us doesn't understand the relationship between sae_id and layer. Please check!"
-        self.model_id = model_id
-        # self.release_id = release_id
-        self.layer = layer
+    def __init__(self, sae:SAE, neuronpedia_api_key:str|None=None):
+        """
+        params:
+            sae: here's an example: SAE.from_pretrained(release="gemma-scope-2b-pt-res-canonical", sae_id="layer_25/width_16k/canonical", device='cpu')[0] # It is just one matmul, cpu is fine here. Takes .08 seconds
+        """
+        self.model_id = sae.cfg.model_name
         self.neuronpedia_client = NeuronpediaClient(api_key=os.environ['NEURONPEDIA_API_KEY'] if neuronpedia_api_key is None else neuronpedia_api_key)
-        self.sae = sae if sae is not None else SAE.from_pretrained(release=release, sae_id=sae_id, device='cpu') # If vRAM becomes an issue, could try putting this on cpu instead, since it isn't involved in much .
+        self.sae = sae # If vRAM becomes an issue, could try putting this on cpu instead, since it isn't involved in much .
 
     @property
     def bias_interpretation_types(self):
@@ -40,7 +40,7 @@ class ISaeRFT_Interpreter():
         return {'absolute': torch.abs, 'L2': self.L2Importance}
     
     def L2Importance(self, vector: Tensor) -> Tensor:
-        broadcasted = self.sae.W_dec * vector # broadcast together
+        broadcasted = self.sae.W_dec.T * vector # broadcast together
         importance = broadcasted.norm(dim=1)
         return importance
 
@@ -58,8 +58,11 @@ class ISaeRFT_Interpreter():
         assert interpretation_type in self.bias_interpretation_types, f"No such interpretation type '{interpretation_type}'. Must be in {self.bias_interpretation_types}"
         assert len(vector.shape) == 1, "Can only interpret bias vectors with interpret_bias. That means the shape input must be rank 1." 
         assert self.sae.cfg.d_sae == len(vector), "The dimension of the sae and the length of the bias vector do not match."
-
+        import time
+        start = time.time()
+        print("starting importance calculation")
         importance = self.name_importance_map[interpretation_type](vector)
+        print(f"end calculation {time.time() - start}")
         sorted_indices = torch.argsort(importance, descending=True)
         # if interpretation_type == 'absolute':
         #     # Sort indices by absolute values in descending order
@@ -81,8 +84,8 @@ class ISaeRFT_Interpreter():
         indices_to_check = sorted_indices[:top_k]
         feature_results = []
         for rank, index in enumerate(indices_to_check):
-            client_json = self.neuronpedia_client.get_feature(model_id=self.model_id, layer=self.layer, index=sorted_indices[rank])
-            feature_results.append({'rank':rank, 'index':index, 'value':vector[index], 'explanation': client_json['explanations'][0]['description']})
+            client_json = self.neuronpedia_client.get_feature(neuronpedia_id=self.sae.cfg.neuronpedia_id, index=sorted_indices[rank])
+            feature_results.append({'interpretation_type':interpretation_type, 'rank':rank, 'index':index.item(), 'value':vector[index].item(), 'explanation': client_json['explanations'][0]['description']})
 
         return feature_results
 
@@ -120,3 +123,10 @@ class ISaeRFT_Interpreter():
             return self.interpret_1_hidden_layerFFNN(rb.sequential[0], rb.sequential[1], interpretation_type=interpretation_type)
         raise ValueError("This ResidualBlock is too deep! Interpretations are only available for rb with hidden layers in [-1,0,1]. If you have a way to interpret deeper networks, feel free to implement!")
 
+if __name__ == "__main__":
+    mysae = SAE.from_pretrained(release="gemma-scope-2b-pt-res-canonical", sae_id="layer_25/width_16k/canonical", device='cpu')[0]
+    myinter = ISaeRFT_Interpreter(mysae)
+    d_sae = mysae.cfg.d_sae
+    v = torch.randn(d_sae)
+    interpretations = myinter.interpret_bias(v, 'L2', 3)
+    print(interpretations)
