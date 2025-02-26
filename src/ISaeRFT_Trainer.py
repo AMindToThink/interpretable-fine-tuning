@@ -1,3 +1,4 @@
+raise NotImplementedError("I think I'm supposed to make a PeftModel, not a Trainer. I'll use Orpo Trainer.")
 from transformers import Trainer, TrainingArguments
 from torch.nn import Module
 from typing import List, Union, Dict
