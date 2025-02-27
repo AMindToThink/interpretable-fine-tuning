@@ -128,7 +128,7 @@ finetune_tags = ["smol-course", "module_1", "isaerft"]
 # Initialize wandb
 wandb.init(
     project="isaerft-finetuning",
-    name=finetune_name,
+    # name=finetune_name,
     tags=finetune_tags,
     config={
         "model_name": model_name,
