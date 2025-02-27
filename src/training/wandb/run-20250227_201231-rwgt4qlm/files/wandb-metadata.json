@@ -1,0 +1,48 @@
+{
+  "os":  "Linux-5.4.0-1125-kvm-x86_64-with-glibc2.31",
+  "python":  "CPython 3.11.11",
+  "startedAt":  "2025-02-27T20:12:31.366656Z",
+  "program":  "/home/cs29824/matthew/interpretable-fine-tuning/src/training/orpo_isaerft.py",
+  "codePath":  "src/training/orpo_isaerft.py",
+  "git":  {
+    "remote":  "https://AMindToThink:@github.com/AMindToThink/interpretable-fine-tuning.git",
+    "commit":  "7c9c849b20cbb5b3f816b5d8e4f477437c932c36"
+  },
+  "email":  "matthewkhoriaty@gmail.com",
+  "root":  "/home/cs29824/matthew/interpretable-fine-tuning/src/training",
+  "host":  "sting-vm-1",
+  "executable":  "/home/cs29824/matthew/interpretable-fine-tuning/.venv/bin/python",
+  "codePathLocal":  "orpo_isaerft.py",
+  "cpu_count":  16,
+  "cpu_count_logical":  16,
+  "gpu":  "Quadro RTX 8000",
+  "gpu_count":  2,
+  "disk":  {
+    "/":  {
+      "total":  "1585741201408",
+      "used":  "1579223887872"
+    }
+  },
+  "memory":  {
+    "total":  "135100264448"
+  },
+  "cpu":  {
+    "count":  16,
+    "countLogical":  16
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "Quadro RTX 8000",
+      "memoryTotal":  "48318382080",
+      "cudaCores":  4608,
+      "architecture":  "Turing"
+    },
+    {
+      "name":  "Quadro RTX 8000",
+      "memoryTotal":  "48318382080",
+      "cudaCores":  4608,
+      "architecture":  "Turing"
+    }
+  ],
+  "cudaVersion":  "12.3"
+}

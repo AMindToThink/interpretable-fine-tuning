@@ -33,11 +33,11 @@ class ISaeRFT_Interpreter():
 
     @property
     def bias_interpretation_types(self):
-        return frozenset({'absolute', 'L2'})
+        return frozenset({'absolute', 'L2', 'identity'})
     
     @property
     def name_importance_map(self):
-        return {'absolute': torch.abs, 'L2': self.L2Importance}
+        return {'absolute': torch.abs, 'L2': self.L2Importance, 'identity':lambda x: x}
     
     def L2Importance(self, vector: Tensor) -> Tensor:
         # import pdb;pdb.set_trace()
@@ -45,7 +45,7 @@ class ISaeRFT_Interpreter():
         importance = broadcasted.norm(dim=0)
         return importance
 
-    def interpret_bias(self, vector:Tensor, interpretation_type='expectation', top_k:int | None=20):
+    def interpret_bias(self, vector:Tensor, interpretation_type='expectation', top_k:int=20, bottom_k:int=0):
         """
         Interpretation for BiasOnly biases or Residual blocks where hidden_layers = -1.
         
@@ -59,13 +59,7 @@ class ISaeRFT_Interpreter():
         assert interpretation_type in self.bias_interpretation_types, f"No such interpretation type '{interpretation_type}'. Must be in {self.bias_interpretation_types}"
         assert len(vector.shape) == 1, "Can only interpret bias vectors with interpret_bias. That means the shape input must be rank 1." 
         assert self.sae.cfg.d_sae == len(vector), "The dimension of the sae and the length of the bias vector do not match."
-        if 'gemma-2' in self.sae.cfg.neuronpedia_id.split('/')[0] and interpretation_type == "L2":
-            print("Warning: the following sae has decryption matrices that have rows norming to 1, so using L2 and using absolute are the same. Maybe something you should check? gemma-scope-2b-pt-res-canonical")
-        import time
-        start = time.time()
-        print("starting importance calculation")
         importance = self.name_importance_map[interpretation_type](vector)
-        print(f"end calculation {time.time() - start}")
         sorted_indices = torch.argsort(importance, descending=True)
         # if interpretation_type == 'absolute':
         #     # Sort indices by absolute values in descending order
@@ -83,14 +77,21 @@ class ISaeRFT_Interpreter():
                 
 
         #     raise NotImplementedError("Need to figure out how to manage this long-tail-looking distribution")
+        def check_indices(indices_to_check):
+            feature_results = []
+            assert self.sae.cfg.neuronpedia_id is not None, "The SAE doesn't have a neuronpedia ID. "
+            for rank, index in enumerate(indices_to_check):
+                client_json = self.neuronpedia_client.get_feature(neuronpedia_id=self.sae.cfg.neuronpedia_id, index=sorted_indices[rank].item())
+                description = [description_at_index['description'] for description_at_index in client_json['explanations']]
+                # import pdb;pdb.set_trace()
+                feature_results.append({'interpretation_type':interpretation_type, 'rank':rank, 'index':index.item(), 'value':vector[index].item(), 'importance':importance[index].item(), 'explanation': description})
+            return feature_results
+        top_indices_to_check = sorted_indices[:top_k]
+        bottom_indices_to_check = sorted_indices[-bottom_k:]
         
-        indices_to_check = sorted_indices[:top_k]
-        feature_results = []
-        for rank, index in enumerate(indices_to_check):
-            client_json = self.neuronpedia_client.get_feature(neuronpedia_id=self.sae.cfg.neuronpedia_id, index=sorted_indices[rank])
-            feature_results.append({'interpretation_type':interpretation_type, 'rank':rank, 'index':index.item(), 'value':vector[index].item(), 'importance':importance[index].item(), 'explanation': client_json['explanations'][0]['description']})
-
-        return feature_results
+        result = dict(top_results=check_indices(top_indices_to_check), bottom_results=check_indices(bottom_indices_to_check))
+        
+        return result
 
     def interpret_linear(self,  linear:Linear | LoRALinear, interpretation_type='expectation'):
         """
