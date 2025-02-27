@@ -1,6 +1,7 @@
-#%%
-# %load_ext autoreload
-# %autoreload 2
+# Following along with https://medium.com/myorder/fine-tuning-pythia-70m-deduped-instruction-following-llms-with-performance-evaluation-3bd0bb33b79
+# %%
+%load_ext autoreload
+%autoreload 2
 #%%
 # Import libraries
 from dataclasses import dataclass
@@ -28,10 +29,10 @@ except ImportError:
     from model_components.IsaerftConfig import IsaerftConfig
     from model_components.IsaerftPeft import IsaerftPeft
 #%%
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Use only GPU 0
-import torch
-print(torch.cuda.device_count())  # Should print 1
+# import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = '0'  # Use only GPU 0
+# import torch
+# print(torch.cuda.device_count())  # Should print 1, but doesn't
 #%%
 # Authenticate to Hugging Face
 from huggingface_hub import login
@@ -44,7 +45,7 @@ dataset = load_dataset(path="trl-lib/ultrafeedback_binarized")
 
 #%%
 # Define the model
-model_name = "google/gemma-2-2b" # don't change this, I needed to do jank things to the tokenizer
+model_name = "EleutherAI/pythia-70m-deduped" 
 
 device = (
     "cuda:0"
@@ -57,15 +58,31 @@ assert 'cuda' in device
 # Model to fine-tune
 model = HookedSAETransformer.from_pretrained(
     model_name,
-    torch_dtype=torch.float32,
-    device_map=device
+    # torch_dtype=torch.float32,
+    # device_map=device
 ).to(device)
 # model.config.use_cache = False
 # tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b-it")
+tokenizer = AutoTokenizer.from_pretrained(model_name)
 #%%
-non_hooked_model = AutoModelForCausalLM.from_pretrained("google/gemma-2-2b").to('cpu')
+chat_template = """{% for message in messages %}
+{% if message['role'] == 'user' %}
+### Instruction:
+{{ message['content'] }}
+{% elif message['role'] == 'assistant' %}
+### Response:
+{{ message['content'] }}
+{% endif %}
+{% endfor %}
+{% if add_generation_prompt %}
+### Response:
+{% endif %}"""
+tokenizer.pad_token = tokenizer.eos_token
+
+tokenizer.chat_template = chat_template
+#%%
+# non_hooked_model = AutoModelForCausalLM.from_pretrained("google/gemma-2-2b").to('cpu')
 #%%
 # del non_hooked_model
 # chat = [
@@ -77,12 +94,24 @@ non_hooked_model = AutoModelForCausalLM.from_pretrained("google/gemma-2-2b").to(
 # _, tokenizer = setup_chat_format(non_hooked_model, tokenizer) # TODO: Figure out if this is a problem that I'm not applying the chat format to the model
 #%%
 # Apply ISAERFT to the model
+from sae_lens import SAE
+
+release = "pythia-70m-deduped-res-sm"
+sae_id = "blocks.4.hook_resid_post"
 isaerft_config = IsaerftConfig(
     target_hooks=[
-        ("gemma-scope-2b-pt-res-canonical", "layer_20/width_16k/canonical"),
+        (release, sae_id),
     ],
     depth=-1  # Bias-only for simplicity
 )
+#%%
+from sae_lens import SAE
+
+release = "pythia-70m-deduped-res-sm"
+sae_id = "blocks.4.hook_resid_post"
+sae = SAE.from_pretrained(release, sae_id)[0]
+#%%
+print(sae)
 #%%
 # Apply the ISAERFT adapter
 model = IsaerftPeft(model, isaerft_config)
@@ -133,7 +162,7 @@ def check_device():
 # model, tokenizer = setup_chat_format(model, tokenizer)
 #%%
 # Set our name for the finetune to be saved &/ uploaded to
-finetune_name = "GEMMA-2-2B-FT-ORPO-ISAERFT"
+finetune_name = "PYTHIA-FT-ORPO-ISAERFT"
 finetune_tags = ["smol-course", "module_1", "isaerft"]
 
 #%%
@@ -176,6 +205,10 @@ orpo_args = ORPOConfig(
 )
 
 #%%
+thesae = next(iter(model.saes.items()))[1]
+thesae.W_E
+
+#%%
 # Initialize wandb
 import wandb
 from datetime import datetime
@@ -184,12 +217,10 @@ wandb.finish()
 wandb.login(key=os.environ['WANDB_KEY'])
 
 wandb.init(
-    project="gemma-2-2b-orpo-isaerft",
+    project="pythia70m-orpo-isaerft",
     name=f"run-{datetime.now().strftime('%Y%m%d-%H%M')}-{uuid.uuid4().hex[:6]}",
     tags=finetune_tags
 )
-#%%
-type(dataset['train'][:10])
 #%%
 # Create the trainer
 trainer = ORPOTrainer(

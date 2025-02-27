@@ -42,9 +42,10 @@ def resid_hook(sae_acts, hook, residual_block):
 #%%
 class IsaerftModel(nn.Module):
     """Implementation of the ISAERFT model"""
-    def __init__(self, model, config, adapter_name):
+    def __init__(self, model, config, adapter_name, device='cuda:0'):
         super().__init__()
         self.model = model
+        self.device=device
         self.config = AutoConfig.from_pretrained(model.cfg.tokenizer_name)
         self.peft_config = {adapter_name: config}
         self.active_adapter = adapter_name
@@ -135,11 +136,12 @@ class IsaerftModel(nn.Module):
             for release, sae_id in potential_matches:
                 try:
                     # Import the SAE
+                    # import pdb;pdb.set_trace()
                     sae, _, _ = SAE.from_pretrained(
                         release=release,
-                        sae_id=sae_id,
-                        device=next(self.model.parameters()).device
+                        sae_id=sae_id
                     )
+                    sae = sae.to(self.device)
                     # Freeze the SAE parameters
                     for param in sae.parameters():
                         param.requires_grad = False
@@ -165,7 +167,7 @@ class IsaerftModel(nn.Module):
         # Process each target hook pattern (release, id) pair
         for release_pattern, id_pattern in target_hooks:
             matching_saes = []
-            
+            # import pdb;pdb.set_trace()
             # If no matching SAEs found, try to import them
             potential_matches = self._find_potential_sae_matches(release_pattern=release_pattern, id_pattern=id_pattern, pretrained_saes=pretrained_saes)
             matching_saes = self._find_and_import_saes(potential_matches)
@@ -201,7 +203,7 @@ class IsaerftModel(nn.Module):
                 hidden_layers=config.depth,
                 hidden_dim=config.hidden_size,
                 name=f"residual_block_{sanitized_name}"
-            ).to(next(self.model.parameters()).device)
+            ).to(self.device)
             block.requires_grad_(True)
             self.trainable_blocks[sanitized_name] = block
         self.add_hooks()
