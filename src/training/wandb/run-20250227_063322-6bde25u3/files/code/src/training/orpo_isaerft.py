@@ -1,3 +1,4 @@
+# Following along with https://medium.com/myorder/fine-tuning-pythia-70m-deduped-instruction-following-llms-with-performance-evaluation-3bd0bb33b79
 # %%
 %load_ext autoreload
 %autoreload 2
@@ -212,7 +213,6 @@ orpo_args = ORPOConfig(
 
 #%%
 thesae = next(iter(model.saes.items()))[1]
-[(k,v) for k,v in thesae.__dict__.items() if hasattr(v, 'device')]
 # thesae.W_E
 
 #%%
@@ -236,7 +236,7 @@ trainer = ORPOTrainer(
     train_dataset=dataset["train"].select(range(10)),
     eval_dataset=dataset["test"].select(range(10)),
     processing_class=tokenizer,
-    # label_names=["labels"],  # This is the standard label name for causal language models
+    label_names=["labels"],  # This is the standard label name for causal language models
 )
 
 # Get the actual device the model is on
@@ -308,10 +308,10 @@ trainer.data_collator = device_aware_collator
 
 # Patch the compute_loss method to ensure inputs are on the right device
 original_compute_loss = trainer.compute_loss
-def compute_loss_with_device_check(model, inputs, return_outputs=False, **kwargs):
+def compute_loss_with_device_check(model, inputs, return_outputs=False):
     # Ensure all inputs are on the same device as the model
     device_checked_inputs = move_inputs_to_device(inputs, model_device)
-    return original_compute_loss(model, device_checked_inputs, return_outputs, **kwargs)
+    return original_compute_loss(model, device_checked_inputs, return_outputs)
 
 trainer.compute_loss = compute_loss_with_device_check
 

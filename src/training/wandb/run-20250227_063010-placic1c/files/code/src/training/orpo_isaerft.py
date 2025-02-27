@@ -1,3 +1,4 @@
+# Following along with https://medium.com/myorder/fine-tuning-pythia-70m-deduped-instruction-following-llms-with-performance-evaluation-3bd0bb33b79
 # %%
 %load_ext autoreload
 %autoreload 2
@@ -46,15 +47,12 @@ dataset = load_dataset(path="trl-lib/ultrafeedback_binarized")
 # Define the model
 model_name = "EleutherAI/pythia-70m-deduped" 
 
-# Get the actual device that CUDA is using
-if torch.cuda.is_available():
-    # Get the current device that's actually being used
-    device = f"cuda:{torch.cuda.current_device()}"
-else:
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
-
+device = (
+    "cuda:0"
+    if torch.cuda.is_available()
+    else "mps" if torch.backends.mps.is_available() else "cpu"
+)
 assert 'cuda' in device
-print(f"Using device: {device}")
 
 #%%
 # Model to fine-tune
@@ -206,14 +204,13 @@ orpo_args = ORPOConfig(
     num_train_epochs=(1/4*.25),
     # Ensure device placement is correct
     no_cuda=False,
-    dataloader_pin_memory=False,
+    dataloader_pin_memory=True,
     dataloader_drop_last=True,
 )
 
 #%%
 thesae = next(iter(model.saes.items()))[1]
-[(k,v) for k,v in thesae.__dict__.items() if hasattr(v, 'device')]
-# thesae.W_E
+thesae.W_E
 
 #%%
 # Initialize wandb
@@ -236,37 +233,25 @@ trainer = ORPOTrainer(
     train_dataset=dataset["train"].select(range(10)),
     eval_dataset=dataset["test"].select(range(10)),
     processing_class=tokenizer,
-    # label_names=["labels"],  # This is the standard label name for causal language models
+    # Add explicit device placement for data processing
+    data_collator=None,  # Let the trainer create a default one with proper device handling
 )
 
-# Get the actual device the model is on
-model_device = next(model.parameters()).device
-print(f"Model is on device: {model_device}")
-
 # Add this before training to ensure inputs are on the correct device
-def move_inputs_to_device(batch, target_device):
-    # Only move tensors that aren't already on the target device
-    return {k: (v.to(target_device) if isinstance(v, torch.Tensor) and v.device != target_device else v) 
-            for k, v in batch.items()}
+def move_inputs_to_device(batch, device):
+    return {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
 
 # Override the default get_train_dataloader to ensure tensors are on the right device
 original_get_train_dataloader = trainer.get_train_dataloader
 def get_train_dataloader_with_device():
-    # Disable pin_memory since we're handling device placement manually
-    original_pin_memory = trainer.args.dataloader_pin_memory
-    trainer.args.dataloader_pin_memory = False
-    
     dataloader = original_get_train_dataloader()
     original_collate_fn = dataloader.collate_fn
     
     def collate_fn_with_device(*args, **kwargs):
         batch = original_collate_fn(*args, **kwargs)
-        return move_inputs_to_device(batch, model_device)
+        return move_inputs_to_device(batch, device)
     
     dataloader.collate_fn = collate_fn_with_device
-    
-    # Restore original pin_memory setting
-    trainer.args.dataloader_pin_memory = original_pin_memory
     return dataloader
 
 trainer.get_train_dataloader = get_train_dataloader_with_device
@@ -274,49 +259,32 @@ trainer.get_train_dataloader = get_train_dataloader_with_device
 # Do the same for eval dataloader
 original_get_eval_dataloader = trainer.get_eval_dataloader
 def get_eval_dataloader_with_device(eval_dataset=None):
-    # Disable pin_memory since we're handling device placement manually
-    original_pin_memory = trainer.args.dataloader_pin_memory
-    trainer.args.dataloader_pin_memory = False
-    
     dataloader = original_get_eval_dataloader(eval_dataset)
     original_collate_fn = dataloader.collate_fn
     
     def collate_fn_with_device(*args, **kwargs):
         batch = original_collate_fn(*args, **kwargs)
-        return move_inputs_to_device(batch, model_device)
+        return move_inputs_to_device(batch, device)
     
     dataloader.collate_fn = collate_fn_with_device
-    
-    # Restore original pin_memory setting
-    trainer.args.dataloader_pin_memory = original_pin_memory
     return dataloader
 
 trainer.get_eval_dataloader = get_eval_dataloader_with_device
 
-# Store the original data collator
-original_data_collator = trainer.data_collator
+# Override the concatenated_inputs method to ensure device placement
+original_concatenated_inputs = trainer.concatenated_inputs
+def concatenated_inputs_with_device(batch, is_encoder_decoder=False, label_pad_token_id=-100, padding_value=0, device=None):
+    # Call the original method but ensure device is passed
+    result = original_concatenated_inputs(
+        batch, 
+        is_encoder_decoder=is_encoder_decoder, 
+        label_pad_token_id=label_pad_token_id, 
+        padding_value=padding_value,
+        device=torch.device(device)  # Explicitly pass the device
+    )
+    return result
 
-# Create a new data collator that wraps the original one
-def device_aware_collator(features):
-    # Use the original collator to create the batch
-    batch = original_data_collator(features)
-    # Move the batch to the correct device
-    return move_inputs_to_device(batch, model_device)
-
-# Replace the trainer's data collator with our wrapper
-trainer.data_collator = device_aware_collator
-
-# Patch the compute_loss method to ensure inputs are on the right device
-original_compute_loss = trainer.compute_loss
-def compute_loss_with_device_check(model, inputs, return_outputs=False, **kwargs):
-    # Ensure all inputs are on the same device as the model
-    device_checked_inputs = move_inputs_to_device(inputs, model_device)
-    return original_compute_loss(model, device_checked_inputs, return_outputs, **kwargs)
-
-trainer.compute_loss = compute_loss_with_device_check
-
-# Also modify the orpo_args to disable pin_memory
-orpo_args.dataloader_pin_memory = False
+trainer.concatenated_inputs = concatenated_inputs_with_device
 
 #%%
 # Train the model
