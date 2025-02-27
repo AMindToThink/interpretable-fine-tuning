@@ -27,6 +27,8 @@ class IsaerftConfig(PeftConfig):
     task_type: str = field(default="CAUSAL_LM", metadata={"help": "Task type"})
     
     # IsaerftConfig specific fields
+    is_prompt_learning:bool=field(default=False, init=False, metadata={"help": "Whether this is a prompt learning method. ISaeRFT is not."})
+    
     target_hooks: List[tuple[str, str]] = field(default_factory=list, metadata={'help':"List of (release, id) tuples to match SAEs, e.g. [('gemma-scope-2b-pt-res-canonical', 'layer_25/width_16k/canonical')] or [('res', '')] for all residual for that model"})
     depth: int = field(default=-1, metadata={"help": "How many layers for the FFNNs to have. -1 only trains a bias, 0 only trains a linear layer. defaults to -1."})
     hidden_size: Optional[int] = field(default=None, metadata={'help':'The hidden size of the FFNN. depth must be > 0 for this to be provided.'})
@@ -34,7 +36,7 @@ class IsaerftConfig(PeftConfig):
     
     def __post_init__(self):
         super().__post_init__()
-        
+
         if self.depth < 1 and (self.hidden_size is not None):
             raise ValueError("`hidden_size` must be None if there are no hidden parameters! (ie, when `depth` is less than 1)")
 
