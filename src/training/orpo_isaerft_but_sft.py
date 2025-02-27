@@ -1,6 +1,7 @@
 # %%
-%load_ext autoreload
-%autoreload 2
+if 'get_ipython' in globals():
+    %load_ext autoreload
+    %autoreload 2
 #%%
 # Import libraries
 from tqdm import tqdm
@@ -280,3 +281,4 @@ wandb.finish()
 print(f"Model saved to {output_dir} and uploaded to Hugging Face Hub as {finetune_name}")
 
 # %%
+import pdb;pdb.set_trace()
