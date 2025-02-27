@@ -154,7 +154,7 @@ trainable_params = [p for p in model.parameters() if p.requires_grad]
 optimizer = torch.optim.AdamW(trainable_params, lr=learning_rate)
 
 # Use the full training dataset
-train_dataset = dataset["train"]
+train_dataset = dataset["train"].select(range(5000))
 
 # Create a validation set (10% of the training data)
 train_val_split = int(0.9 * len(train_dataset))
@@ -167,7 +167,7 @@ for epoch in range(num_epochs):
     total_loss = 0
     
     # Process data in batches
-    for i in range(0, len(train_dataset), batch_size):
+    for i in tqdm(range(0, len(train_dataset), batch_size)):
         batch_data = train_dataset[i:i+batch_size]
         
         # Use plain_text directly instead of instruction/response
