@@ -353,3 +353,8 @@ if __name__ == "__main__":
 
     print("\nTest completed successfully!")
     # %%
+    #%%
+    for name, param in peft_model.named_parameters():
+        if param.requires_grad:
+            print(param.shape)
+    # %%
