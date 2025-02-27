@@ -15,6 +15,8 @@ from transformers import (
 from trl import ORPOConfig, ORPOTrainer, setup_chat_format
 from sae_lens import HookedSAETransformer, SAE
 import wandb  # Add wandb import
+import numpy as np
+import json
 #%%
 # Import our custom ISAERFT components
 try:
@@ -232,6 +234,36 @@ print(len(trainable_params))
 print(trainable_params[0].shape)
 
 #%%
+# Save the trainable parameter to a human-readable file
+
+# Get the trainable parameter and convert to numpy
+param_tensor = trainable_params[0].detach().cpu().numpy()
+param_shape = param_tensor.shape
+param_list = param_tensor.tolist()  # Convert to list for JSON serialization
+
+# Create a dictionary with metadata and values
+param_data = {
+    "shape": list(param_shape),
+    "values": param_list,
+    "description": f"ISAERFT bias vector for {release}/{sae_id}"
+}
+output_dir = 'results'
+# Save as JSON (human-readable)
+param_file_path = f"{output_dir}/trainable_param.json"
+with open(param_file_path, 'w') as f:
+    json.dump(param_data, f, indent=2)
+
+print(f"Trainable parameter saved to {param_file_path}")
+
+# Example of how to load it back:
+def load_param_from_json(file_path):
+    with open(file_path, 'r') as f:
+        param_data = json.load(f)
+    
+    # Convert back to tensor
+    param_tensor = torch.tensor(param_data["values"]).reshape(param_data["shape"])
+    return param_tensor
+
 # Save the fine-tuned model
 output_dir = f"./models/{finetune_name}"
 os.makedirs(output_dir, exist_ok=True)
