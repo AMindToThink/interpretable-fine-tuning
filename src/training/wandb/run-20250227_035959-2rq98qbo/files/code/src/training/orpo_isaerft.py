@@ -58,10 +58,10 @@ model = HookedSAETransformer.from_pretrained(
 # model.config.use_cache = False
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 #%%
-non_hooked_model = AutoModelForCausalLM.from_pretrained("google/gemma-2-2b").to('cpu')
+# non_hooked_model = AutoModelForCausalLM.from_pretrained("google/gemma-2-2b").to('cpu')
 #%%
 # del non_hooked_model
-_, tokenizer = setup_chat_format(non_hooked_model, tokenizer) # TODO: Figure out if this is a problem that I'm not applying the chat format to the model
+
 #%%
 # Apply ISAERFT to the model
 isaerft_config = IsaerftConfig(
@@ -74,7 +74,7 @@ isaerft_config = IsaerftConfig(
 # Apply the ISAERFT adapter
 model = IsaerftPeft(model, isaerft_config)
 #%%
-# model, tokenizer = setup_chat_format(model, tokenizer)
+model, tokenizer = setup_chat_format(model, tokenizer)
 #%%
 # Set our name for the finetune to be saved &/ uploaded to
 finetune_name = "GEMMA-2-2B-FT-ORPO-ISAERFT"
@@ -170,4 +170,3 @@ except Exception as e:
 print("## 💐 You're done!")
 print("You've successfully fine-tuned SmolLM2 with ORPO and ISAERFT!")
 print("This approach allows you to align the model while only training a small number of parameters.")
-#%%

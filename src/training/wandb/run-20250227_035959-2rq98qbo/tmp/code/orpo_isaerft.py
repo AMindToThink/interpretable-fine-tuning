@@ -61,7 +61,7 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 non_hooked_model = AutoModelForCausalLM.from_pretrained("google/gemma-2-2b").to('cpu')
 #%%
 # del non_hooked_model
-_, tokenizer = setup_chat_format(non_hooked_model, tokenizer) # TODO: Figure out if this is a problem that I'm not applying the chat format to the model
+_, tokenizer = setup_chat_format(non_hooked_model, tokenizer)
 #%%
 # Apply ISAERFT to the model
 isaerft_config = IsaerftConfig(

@@ -55,7 +55,8 @@ class IsaerftModel(nn.Module):
         
         # Create trainable blocks for each target hook
         self.setup_trainable_blocks()
-    def resize_token_embeddings(self, num_new_tokens, *args):
+    def resize_token_embeddings(self, num_new_tokens, *args, **kwargs):
+        print(f"{num_new_tokens=}")
         assert num_new_tokens == self.config.vocab_size
     @classmethod
     def _load_pretrained_saes_yaml(cls):
@@ -266,6 +267,10 @@ class IsaerftPeft(PeftModel):
     def forward(self, *args, **kwargs):
         """Override the forward method to directly use the base model"""
         # Skip the problematic PeftModel.forward implementation
+        # import pdb;pdb.set_trace()
+        # Pop use_cache if present since model doesn't support it
+        assert not kwargs['use_cache'], "Sorry, HookedSAETransformer doesn't have use_cache"
+        kwargs.pop('use_cache', None)
         return self.base_model(*args, **kwargs)
     
     def get_base_model(self):
