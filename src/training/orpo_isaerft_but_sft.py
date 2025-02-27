@@ -1,7 +1,7 @@
 # %%
-if 'get_ipython' in globals():
-    %load_ext autoreload
-    %autoreload 2
+# uncomment these when in notebook mode 
+# %load_ext autoreload
+# %autoreload 2
 #%%
 # Import libraries
 from tqdm import tqdm
