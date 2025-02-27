@@ -18,6 +18,7 @@ from sae_lens import HookedSAETransformer, SAE
 import wandb  # Add wandb import
 import numpy as np
 import json
+from datetime import datetime  # Add datetime import
 #%%
 # Import our custom ISAERFT components
 try:
@@ -144,17 +145,20 @@ wandb.init(
 # Create a simple training loop without preprocessing
 
 # Training hyperparameters
-learning_rate = 5e-5
-num_epochs = 3
-batch_size = 4
-gradient_accumulation_steps = 4
+hyperparams = {
+    "learning_rate": 5e-5,
+    "num_epochs": 3,
+    "batch_size": 4,
+    "gradient_accumulation_steps": 4,
+    "train_size": 20000
+}
 
 # Prepare optimizer - only optimize the trainable parameters
 trainable_params = [p for p in model.parameters() if p.requires_grad]
-optimizer = torch.optim.AdamW(trainable_params, lr=learning_rate)
+optimizer = torch.optim.AdamW(trainable_params, lr=hyperparams["learning_rate"])
 
 # Use the full training dataset
-train_dataset = dataset["train"].select(range(5000))
+train_dataset = dataset["train"].select(range(hyperparams["train_size"]))
 
 # Create a validation set (10% of the training data)
 train_val_split = int(0.9 * len(train_dataset))
@@ -163,12 +167,12 @@ train_dataset = train_dataset.select(range(train_val_split))
 
 # Training loop
 model.train()
-for epoch in range(num_epochs):
+for epoch in range(hyperparams["num_epochs"]):
     total_loss = 0
     
     # Process data in batches
-    for i in tqdm(range(0, len(train_dataset), batch_size)):
-        batch_data = train_dataset[i:i+batch_size]
+    for i in tqdm(range(0, len(train_dataset), hyperparams["batch_size"])):
+        batch_data = train_dataset[i:i+hyperparams["batch_size"]]
         
         # Use plain_text directly instead of instruction/response
         texts = batch_data["plain_text"]
@@ -185,39 +189,39 @@ for epoch in range(num_epochs):
         loss = outputs.loss
         
         # Scale loss for gradient accumulation
-        loss = loss / gradient_accumulation_steps
+        loss = loss / hyperparams["gradient_accumulation_steps"]
         loss.backward()
         
         # Update weights if we've accumulated enough gradients
-        if ((i // batch_size) + 1) % gradient_accumulation_steps == 0 or i >= len(train_dataset) - batch_size:
+        if ((i // hyperparams["batch_size"]) + 1) % hyperparams["gradient_accumulation_steps"] == 0 or i >= len(train_dataset) - hyperparams["batch_size"]:
             optimizer.step()
             optimizer.zero_grad()
         
-        total_loss += loss.item() * gradient_accumulation_steps
+        total_loss += loss.item() * hyperparams["gradient_accumulation_steps"]
         
         # Print progress
-        if (i // batch_size) % 10 == 0:
-            print(f"Epoch {epoch+1}/{num_epochs} | Batch {i//batch_size}/{len(train_dataset)//batch_size} | Loss: {loss.item() * gradient_accumulation_steps:.4f}")
+        if (i // hyperparams["batch_size"]) % 10 == 0:
+            # print(f"Epoch {epoch+1}/{hyperparams['num_epochs']} | Batch {i//hyperparams['batch_size']}/{len(train_dataset)//hyperparams['batch_size']} | Loss: {loss.item() * hyperparams['gradient_accumulation_steps']:.4f}")
             # Log training loss to wandb
-            wandb.log({"train_loss": loss.item() * gradient_accumulation_steps, 
+            wandb.log({"train_loss": loss.item() * hyperparams["gradient_accumulation_steps"], 
                       "epoch": epoch + (i/len(train_dataset))})
     
-    avg_loss = total_loss / (len(train_dataset) // batch_size)
-    print(f"Epoch {epoch+1}/{num_epochs} completed | Average Loss: {avg_loss:.4f}")
+    avg_loss = total_loss / (len(train_dataset) // hyperparams["batch_size"])
+    print(f"Epoch {epoch+1}/{hyperparams['num_epochs']} completed | Average Loss: {avg_loss:.4f}")
     
     # Validation after each epoch
     model.eval()
     val_loss = 0
     with torch.no_grad():
-        for i in range(0, len(val_dataset), batch_size):
-            batch_data = val_dataset[i:i+batch_size]
+        for i in range(0, len(val_dataset), hyperparams["batch_size"]):
+            batch_data = val_dataset[i:i+hyperparams["batch_size"]]
             texts = batch_data["plain_text"]
             inputs = tokenizer(texts, return_tensors="pt", padding=True, truncation=True)
             inputs = {k: v.to(device) for k, v in inputs.items()}
             outputs = model(**inputs)
             val_loss += outputs.loss.item()
     
-    avg_val_loss = val_loss / (len(val_dataset) // batch_size)
+    avg_val_loss = val_loss / (len(val_dataset) // hyperparams["batch_size"])
     print(f"Validation Loss: {avg_val_loss:.4f}")
     
     # Log epoch metrics to wandb
@@ -245,12 +249,13 @@ param_list = param_tensor.tolist()  # Convert to list for JSON serialization
 # Create a dictionary with metadata and values
 param_data = {
     "shape": list(param_shape),
+    "hyperparameters": hyperparams,
     "values": param_list,
     "description": f"ISAERFT bias vector for {release}/{sae_id}"
 }
 output_dir = 'results'
 # Save as JSON (human-readable)
-param_file_path = f"{output_dir}/trainable_param.json"
+param_file_path = f"{output_dir}/trainable_param_{datetime.now().strftime('%Y-%m-%d-%H:%M')}.json"
 with open(param_file_path, 'w') as f:
     json.dump(param_data, f, indent=2)
 
@@ -265,15 +270,15 @@ def load_param_from_json(file_path):
     param_tensor = torch.tensor(param_data["values"]).reshape(param_data["shape"])
     return param_tensor
 
-# Save the fine-tuned model
-output_dir = f"./models/{finetune_name}"
-os.makedirs(output_dir, exist_ok=True)
-model.save_pretrained(output_dir)
-tokenizer.save_pretrained(output_dir)
+# # Save the fine-tuned model
+# output_dir = f"./models/{finetune_name}"
+# os.makedirs(output_dir, exist_ok=True)
+# model.save_pretrained(output_dir)
+# tokenizer.save_pretrained(output_dir)
 
-# Optional: Upload to Hugging Face Hub
-model.push_to_hub(finetune_name, tags=finetune_tags, token=os.environ['HUGGINGFACE_WRITE_KEY'])
-tokenizer.push_to_hub(finetune_name, tags=finetune_tags,token=os.environ['HUGGINGFACE_WRITE_KEY'])
+# # Optional: Upload to Hugging Face Hub
+# model.push_to_hub(finetune_name, tags=finetune_tags, token=os.environ['HUGGINGFACE_WRITE_KEY'])
+# tokenizer.push_to_hub(finetune_name, tags=finetune_tags,token=os.environ['HUGGINGFACE_WRITE_KEY'])
 
 # Finish wandb run
 wandb.finish()
@@ -281,4 +286,4 @@ wandb.finish()
 print(f"Model saved to {output_dir} and uploaded to Hugging Face Hub as {finetune_name}")
 
 # %%
-import pdb;pdb.set_trace()
+# import pdb;pdb.set_trace()
