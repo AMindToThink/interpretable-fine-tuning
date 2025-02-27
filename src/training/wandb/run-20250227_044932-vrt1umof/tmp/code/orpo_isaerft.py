@@ -1,6 +1,6 @@
 #%%
-# %load_ext autoreload
-# %autoreload 2
+%load_ext autoreload
+%autoreload 2
 #%%
 # Import libraries
 from dataclasses import dataclass
@@ -27,11 +27,8 @@ except ImportError:
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from model_components.IsaerftConfig import IsaerftConfig
     from model_components.IsaerftPeft import IsaerftPeft
-#%%
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Use only GPU 0
-import torch
-print(torch.cuda.device_count())  # Should print 1
+
+
 #%%
 # Authenticate to Hugging Face
 from huggingface_hub import login
@@ -47,7 +44,7 @@ dataset = load_dataset(path="trl-lib/ultrafeedback_binarized")
 model_name = "google/gemma-2-2b" # don't change this, I needed to do jank things to the tokenizer
 
 device = (
-    "cuda:0"
+    "cuda:1"
     if torch.cuda.is_available()
     else "mps" if torch.backends.mps.is_available() else "cpu"
 )
@@ -58,7 +55,6 @@ assert 'cuda' in device
 model = HookedSAETransformer.from_pretrained(
     model_name,
     torch_dtype=torch.float32,
-    device_map=device
 ).to(device)
 # model.config.use_cache = False
 # tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -87,49 +83,6 @@ isaerft_config = IsaerftConfig(
 # Apply the ISAERFT adapter
 model = IsaerftPeft(model, isaerft_config)
 #%%
-# Check device placement of model components
-def check_device():
-    print("Checking device placement of model components...")
-    model_device = next(model.base_model.parameters()).device
-    import torch
-    print(f"{torch.device(device)=}")
-    print(f"{model_device=}")
-    assert model_device == torch.device(device)
-    # Check base model
-    print(f"Base model device: {model_device}")
-
-    assert(all(p[1].device == model_device for p in model.named_parameters()))
-    text = "Hello, world!"
-    input_ids = tokenizer(text, return_tensors="pt").input_ids.to(device)
-    print(f"Input shape: {input_ids.shape}")
-
-
-    # Forward pass
-    output = model(input_ids)
-    print(f"Output shape: {output.shape}")
-    print(tokenizer.apply_chat_template(text, tokenize=False, add_generation_prompt=True))
-    # Run an example through the model to verify forward pass
-    print("Testing model forward pass...")
-
-    # Create a simple test input
-    test_chat = [
-        {"role": "user", "content": "Write a hello world program"}
-    ]
-    test_prompt = tokenizer.apply_chat_template(test_chat, tokenize=False, add_generation_prompt=True)
-    print(test_prompt)
-    # Tokenize input
-    inputs = tokenizer(test_prompt, return_tensors="pt").to(device)
-    print(inputs)
-    # Run forward pass
-    outputs = model(**inputs)
-    print(outputs)
-    print("Forward pass successful!")
-    print(f"Output shape: {outputs.logits.shape}")
-    print(f"Output device: {outputs.logits.device}")
-    assert outputs.logits.device == model_device, "Output device doesn't match model device"
-
-#%%
-
 # model, tokenizer = setup_chat_format(model, tokenizer)
 #%%
 # Set our name for the finetune to be saved &/ uploaded to
@@ -150,10 +103,10 @@ orpo_args = ORPOConfig(
     # Controls weight of the odds ratio loss (λ in paper)
     beta=0.1,
     # Batch size for training
-    per_device_train_batch_size=2,
-    per_device_eval_batch_size=2,
+    per_device_train_batch_size=4,
+    per_device_eval_batch_size=4,
     # Helps with training stability by accumulating gradients before updating
-    gradient_accumulation_steps=8,
+    gradient_accumulation_steps=4,
     # Memory-efficient optimizer for CUDA, falls back to adamw_torch for CPU/MPS
     optim="paged_adamw_8bit" if ("cuda" in device)else "adamw_torch",
     # When to run evaluation

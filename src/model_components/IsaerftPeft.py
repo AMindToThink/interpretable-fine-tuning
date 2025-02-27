@@ -230,9 +230,16 @@ class IsaerftModel(nn.Module):
         """Forward pass that adds hooks before and removes them after"""
         # Add hooks before forward pass
         # self.add_hooks()
-        
+        # import pdb;pdb.set_trace()
         # Run the model's forward pass
-        output = self.model(*args, **kwargs)
+        if "input_ids" in kwargs:
+            input_tensor = kwargs.pop("input_ids")  # Use pop to remove it
+        elif args:
+            input_tensor = args[0]
+            args = args[1:]  # Remove the first argument
+        else:
+            input_tensor = None
+        output = self.model(input_tensor, *args, **kwargs, return_type='both')
         
         # Remove hooks after forward pass (optional, can keep them if needed)
         # self.remove_hooks()
@@ -269,8 +276,8 @@ class IsaerftPeft(PeftModel):
         # Skip the problematic PeftModel.forward implementation
         # import pdb;pdb.set_trace()
         # Pop use_cache if present since model doesn't support it
-        assert not kwargs['use_cache'], "Sorry, HookedSAETransformer doesn't have use_cache"
-        kwargs.pop('use_cache', None)
+        assert not kwargs.pop('use_cache', None), "Sorry, HookedSAETransformer doesn't have use_cache. Please make it either false or don't give it."
+        
         return self.base_model(*args, **kwargs)
     
     def get_base_model(self):
@@ -297,12 +304,12 @@ if __name__ == "__main__":
     importlib.reload(sys.modules['IsaerftConfig'])
     #%%
     # Set device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # Load model
     print("Loading HookedSAETransformer...")
-    model = HookedSAETransformer.from_pretrained("google/gemma-2-2b", device=device)
+    model = HookedSAETransformer.from_pretrained("google/gemma-2-2b", device=device, device_map=device)
     print(f"Model loaded: {model.cfg.model_name}")
     #%%
     # Create IsaerftConfig

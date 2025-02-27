@@ -1,6 +1,6 @@
 #%%
-# %load_ext autoreload
-# %autoreload 2
+%load_ext autoreload
+%autoreload 2
 #%%
 # Import libraries
 from dataclasses import dataclass
@@ -30,8 +30,7 @@ except ImportError:
 #%%
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Use only GPU 0
-import torch
-print(torch.cuda.device_count())  # Should print 1
+
 #%%
 # Authenticate to Hugging Face
 from huggingface_hub import login
@@ -58,7 +57,6 @@ assert 'cuda' in device
 model = HookedSAETransformer.from_pretrained(
     model_name,
     torch_dtype=torch.float32,
-    device_map=device
 ).to(device)
 # model.config.use_cache = False
 # tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -88,45 +86,49 @@ isaerft_config = IsaerftConfig(
 model = IsaerftPeft(model, isaerft_config)
 #%%
 # Check device placement of model components
-def check_device():
-    print("Checking device placement of model components...")
-    model_device = next(model.base_model.parameters()).device
-    import torch
-    print(f"{torch.device(device)=}")
-    print(f"{model_device=}")
-    assert model_device == torch.device(device)
-    # Check base model
-    print(f"Base model device: {model_device}")
+print("Checking device placement of model components...")
+model_device = next(model.base_model.parameters()).device
+import torch
+print(f"{torch.device(device)=}")
+print(f"{model_device=}")
+assert model_device == torch.device(device)
+# Check base model
+print(f"Base model device: {model_device}")
 
-    assert(all(p[1].device == model_device for p in model.named_parameters()))
-    text = "Hello, world!"
-    input_ids = tokenizer(text, return_tensors="pt").input_ids.to(device)
-    print(f"Input shape: {input_ids.shape}")
+assert(all(p[1].device == model_device for p in model.named_parameters()))
+#%%
+text = "Hello, world!"
+input_ids = tokenizer(text, return_tensors="pt").input_ids.to(device)
+print(f"Input shape: {input_ids.shape}")
 
 
-    # Forward pass
-    output = model(input_ids)
-    print(f"Output shape: {output.shape}")
-    print(tokenizer.apply_chat_template(text, tokenize=False, add_generation_prompt=True))
-    # Run an example through the model to verify forward pass
-    print("Testing model forward pass...")
+# Forward pass
+output = model(input_ids)
+print(f"Output shape: {output.shape}")
+#%%
+print(tokenizer.apply_chat_template(text, tokenize=False, add_generation_prompt=True))
+#%%
+# Run an example through the model to verify forward pass
+print("Testing model forward pass...")
 
-    # Create a simple test input
-    test_chat = [
-        {"role": "user", "content": "Write a hello world program"}
-    ]
-    test_prompt = tokenizer.apply_chat_template(test_chat, tokenize=False, add_generation_prompt=True)
-    print(test_prompt)
-    # Tokenize input
-    inputs = tokenizer(test_prompt, return_tensors="pt").to(device)
-    print(inputs)
-    # Run forward pass
-    outputs = model(**inputs)
-    print(outputs)
-    print("Forward pass successful!")
-    print(f"Output shape: {outputs.logits.shape}")
-    print(f"Output device: {outputs.logits.device}")
-    assert outputs.logits.device == model_device, "Output device doesn't match model device"
+# Create a simple test input
+test_chat = [
+    {"role": "user", "content": "Write a hello world program"}
+]
+test_prompt = tokenizer.apply_chat_template(test_chat, tokenize=False, add_generation_prompt=True)
+print(test_prompt)
+#%%
+# Tokenize input
+inputs = tokenizer(test_prompt, return_tensors="pt").to(device)
+print(inputs)
+#%%
+# Run forward pass
+outputs = model(**inputs)
+
+print("Forward pass successful!")
+print(f"Output shape: {outputs.logits.shape}")
+print(f"Output device: {outputs.logits.device}")
+assert outputs.logits.device == model_device, "Output device doesn't match model device"
 
 #%%
 
