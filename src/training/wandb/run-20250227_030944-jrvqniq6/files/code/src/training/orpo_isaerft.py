@@ -1,7 +1,4 @@
 #%%
-%load_ext autoreload
-%autoreload 2
-#%%
 # Import libraries
 import torch
 import os
@@ -14,19 +11,8 @@ from trl import ORPOConfig, ORPOTrainer, setup_chat_format
 from sae_lens import HookedSAETransformer, SAE
 #%%
 # Import our custom ISAERFT components
-try:
-    # When imported as a module
-    from model_components.IsaerftConfig import IsaerftConfig
-    from model_components.IsaerftPeft import IsaerftPeft
-except ImportError:
-    # When run directly as a script
-    import sys
-    import os
-    # Add the parent directory to the path
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from model_components.IsaerftConfig import IsaerftConfig
-    from model_components.IsaerftPeft import IsaerftPeft
-
+from model_components.IsaerftConfig import IsaerftConfig
+from model_components.IsaerftPeft import IsaerftPeft
 
 #%%
 # Authenticate to Hugging Face
@@ -57,13 +43,7 @@ model = HookedSAETransformer.from_pretrained(
 ).to(device)
 # model.config.use_cache = False
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-#%%
-# non_hooked_model = AutoModelForCausalLM.from_pretrained("google/gemma-2-2b").to('cpu')
-#%%
-# I think that this step is unnecessary. I haven't been using it before; I think that the hooked gemma already handles the tokens
 model, tokenizer = setup_chat_format(model, tokenizer)
-#%%
-# del non_hooked_model
 
 #%%
 # Apply ISAERFT to the model
@@ -73,6 +53,7 @@ isaerft_config = IsaerftConfig(
     ],
     depth=-1  # Bias-only for simplicity
 )
+
 #%%
 # Apply the ISAERFT adapter
 model = IsaerftPeft(model, isaerft_config)
@@ -144,6 +125,7 @@ trainer = ORPOTrainer(
     eval_dataset=dataset["test"],
     processing_class=tokenizer,
 )
+
 #%%
 # Train the model
 trainer.train()

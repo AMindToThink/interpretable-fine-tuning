@@ -57,11 +57,9 @@ model = HookedSAETransformer.from_pretrained(
 ).to(device)
 # model.config.use_cache = False
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-#%%
 # non_hooked_model = AutoModelForCausalLM.from_pretrained("google/gemma-2-2b").to('cpu')
-#%%
 # I think that this step is unnecessary. I haven't been using it before; I think that the hooked gemma already handles the tokens
-model, tokenizer = setup_chat_format(model, tokenizer)
+# _, tokenizer = setup_chat_format(non_hooked_model, tokenizer)
 #%%
 # del non_hooked_model
 
@@ -144,6 +142,8 @@ trainer = ORPOTrainer(
     eval_dataset=dataset["test"],
     processing_class=tokenizer,
 )
+#%%
+model.model.cfg.is_encoder_decoder
 #%%
 # Train the model
 trainer.train()

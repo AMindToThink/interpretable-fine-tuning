@@ -2,6 +2,7 @@
 # from elsewhere
 import torch
 from torch import nn
+from transformers import AutoConfig
 from peft import PeftModel
 from sae_lens import HookedSAETransformer, SAE
 from peft.utils import PeftType
@@ -44,15 +45,18 @@ class IsaerftModel(nn.Module):
     def __init__(self, model, config, adapter_name):
         super().__init__()
         self.model = model
+        self.config = AutoConfig.from_pretrained(model.cfg.tokenizer_name)
         self.peft_config = {adapter_name: config}
         self.active_adapter = adapter_name
+        self.warnings_issued = {}
         
         # Store SAEs that have been added to the model
         self.saes = {}
         
         # Create trainable blocks for each target hook
         self.setup_trainable_blocks()
-    
+    def resize_token_embeddings(self, num_new_tokens, *args):
+        assert num_new_tokens == self.config.vocab_size
     @classmethod
     def _load_pretrained_saes_yaml(cls):
         """Load the pretrained_saes.yaml file from the SAE lens package"""
