@@ -1,4 +1,3 @@
-# Following along with https://medium.com/myorder/fine-tuning-pythia-70m-deduped-instruction-following-llms-with-performance-evaluation-3bd0bb33b79
 # %%
 %load_ext autoreload
 %autoreload 2

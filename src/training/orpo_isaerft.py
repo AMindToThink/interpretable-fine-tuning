@@ -107,14 +107,6 @@ isaerft_config = IsaerftConfig(
     depth=-1  # Bias-only for simplicity
 )
 #%%
-from sae_lens import SAE
-
-release = "pythia-70m-deduped-res-sm"
-sae_id = "blocks.4.hook_resid_post"
-sae = SAE.from_pretrained(release, sae_id)[0]
-#%%
-print(sae)
-#%%
 # Apply the ISAERFT adapter
 model = IsaerftPeft(model, isaerft_config)
 #%%
