@@ -1,6 +1,6 @@
 # %%
-%load_ext autoreload
-%autoreload 2
+# %load_ext autoreload
+# %autoreload 2
 #%%
 # Import libraries
 from dataclasses import dataclass
@@ -235,83 +235,12 @@ trainer = ORPOTrainer(
 model_device = next(model.parameters()).device
 print(f"Model is on device: {model_device}")
 
-# Add this before training to ensure inputs are on the correct device
-def move_inputs_to_device(batch, target_device):
-    # Only move tensors that aren't already on the target device
-    return {k: (v.to(target_device) if isinstance(v, torch.Tensor) and v.device != target_device else v) 
-            for k, v in batch.items()}
 
-# Override the default get_train_dataloader to ensure tensors are on the right device
-original_get_train_dataloader = trainer.get_train_dataloader
-def get_train_dataloader_with_device():
-    # Disable pin_memory since we're handling device placement manually
-    original_pin_memory = trainer.args.dataloader_pin_memory
-    trainer.args.dataloader_pin_memory = False
-    
-    dataloader = original_get_train_dataloader()
-    original_collate_fn = dataloader.collate_fn
-    
-    def collate_fn_with_device(*args, **kwargs):
-        batch = original_collate_fn(*args, **kwargs)
-        return move_inputs_to_device(batch, model_device)
-    
-    dataloader.collate_fn = collate_fn_with_device
-    
-    # Restore original pin_memory setting
-    trainer.args.dataloader_pin_memory = original_pin_memory
-    return dataloader
-
-trainer.get_train_dataloader = get_train_dataloader_with_device
-
-# Do the same for eval dataloader
-original_get_eval_dataloader = trainer.get_eval_dataloader
-def get_eval_dataloader_with_device(eval_dataset=None):
-    # Disable pin_memory since we're handling device placement manually
-    original_pin_memory = trainer.args.dataloader_pin_memory
-    trainer.args.dataloader_pin_memory = False
-    
-    dataloader = original_get_eval_dataloader(eval_dataset)
-    original_collate_fn = dataloader.collate_fn
-    
-    def collate_fn_with_device(*args, **kwargs):
-        batch = original_collate_fn(*args, **kwargs)
-        return move_inputs_to_device(batch, model_device)
-    
-    dataloader.collate_fn = collate_fn_with_device
-    
-    # Restore original pin_memory setting
-    trainer.args.dataloader_pin_memory = original_pin_memory
-    return dataloader
-
-trainer.get_eval_dataloader = get_eval_dataloader_with_device
-
-# Store the original data collator
-original_data_collator = trainer.data_collator
-
-# Create a new data collator that wraps the original one
-def device_aware_collator(features):
-    # Use the original collator to create the batch
-    batch = original_data_collator(features)
-    # Move the batch to the correct device
-    return move_inputs_to_device(batch, model_device)
-
-# Replace the trainer's data collator with our wrapper
-trainer.data_collator = device_aware_collator
-
-# Patch the compute_loss method to ensure inputs are on the right device
-original_compute_loss = trainer.compute_loss
-def compute_loss_with_device_check(model, inputs, return_outputs=False, **kwargs):
-    # Ensure all inputs are on the same device as the model
-    device_checked_inputs = move_inputs_to_device(inputs, model_device)
-    return original_compute_loss(model, device_checked_inputs, return_outputs, **kwargs)
-
-trainer.compute_loss = compute_loss_with_device_check
-
-# Also modify the orpo_args to disable pin_memory
-orpo_args.dataloader_pin_memory = False
 
 #%%
 # Train the model
+# b /home/cs29824/matthew/interpretable-fine-tuning/.venv/lib/python3.11/site-packages/transformer_lens/components/embed.py:34
+import pdb;pdb.set_trace()
 trainer.train()
 
 #%%
