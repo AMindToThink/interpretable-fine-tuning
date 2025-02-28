@@ -1,0 +1,18 @@
+{
+  "auto_mapping": null,
+  "base_model_name_or_path": null,
+  "depth": -1,
+  "hidden_size": null,
+  "inference_mode": false,
+  "is_prompt_learning": false,
+  "lora_r": null,
+  "peft_type": "ISAERFT",
+  "revision": null,
+  "target_hooks": [
+    [
+      "gemma-scope-2b-pt-res-canonical",
+      "layer_20/width_16k/canonical"
+    ]
+  ],
+  "task_type": "CAUSAL_LM"
+}
