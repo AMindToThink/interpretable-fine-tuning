@@ -47,7 +47,7 @@ class IsaerftModel(nn.Module):
         self.model = model
         self.device=device
         self.config = AutoConfig.from_pretrained(model.cfg.tokenizer_name)
-        self.peft_config = {adapter_name: config}
+        self.peft_config = config
         self.active_adapter = adapter_name
         self.warnings_issued = {}
         
@@ -184,7 +184,7 @@ class IsaerftModel(nn.Module):
 
     def setup_trainable_blocks(self):
         """Set up the trainable blocks based on the configuration"""
-        config = self.peft_config[self.active_adapter]['default']
+        config = self.peft_config['default']
         
         self.trainable_blocks = nn.ModuleDict()
         
@@ -273,6 +273,42 @@ class IsaerftPeft(PeftModel):
         assert hasattr(self, 'peft_config'), "PeftModel initialization failed: missing peft_config"
         assert adapter_name in self.peft_config, f"Adapter '{adapter_name}' not found in peft_config"
     
+    def save_pretrained(self, save_directory, *args, **kwargs):
+        """Save the trainable blocks to the specified directory.
+        
+        Args:
+            save_directory (str): Directory where the model should be saved
+            **kwargs: Additional arguments passed to the underlying save methods
+        """
+        import os
+        import json
+        import torch
+        
+        # Create the directory if it doesn't exist
+        os.makedirs(save_directory, exist_ok=True)
+        import pdb;pdb.set_trace()
+        # Save the config
+        self.peft_config[self.active_adapter].save_pretrained(save_directory)
+        
+        # Save each trainable block's state dict
+        for name, block in self._modules['base_model'].trainable_blocks.items():
+            # Create a path for this block
+            block_path = os.path.join(save_directory, f"{name}.pt")
+            # Save the state dict
+            torch.save(block.state_dict(), block_path)
+        
+        # Save a manifest of all blocks
+        block_names = list(self._modules['base_model'].trainable_blocks.keys())
+        with open(os.path.join(save_directory, "blocks_manifest.json"), "w") as f:
+            json.dump({"block_names": block_names}, f, indent=2)
+        
+        print(f"Model saved to {save_directory}")
+        return save_directory
+
+    def merge_and_unload(self):
+        """Part of the Trainer init (eg ORPOTrainer) is to squish Peft into the model. We don't really have that, so do nothing"""
+        return self
+
     def forward(self, *args, **kwargs):
         """Override the forward method to directly use the base model"""
         # Skip the problematic PeftModel.forward implementation

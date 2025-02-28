@@ -1,6 +1,6 @@
 # %%
-%load_ext autoreload
-%autoreload 2
+# %load_ext autoreload
+# %autoreload 2
 
 import os
 # YOU HAVE TO SET CUDA_VISIBLE_DEVICES BEFORE DOING ANY IMPORTS OF cuda-related packages! https://discuss.pytorch.org/t/setting-visible-devices-with-distributed-data-parallel/93230
@@ -228,10 +228,9 @@ wandb.init(
 trainer = ORPOTrainer(
     model=model,
     args=orpo_args,
-    train_dataset=dataset["train"].select(range(100)),
+    train_dataset=dataset["train"].select(range(1000)),
     eval_dataset=dataset["test"].select(range(10)),
     processing_class=tokenizer,
-    peft_config=isaerft_config,
     # label_names=["labels"],  # This is the standard label name for causal language models
     # dataset_num_proc=1,
 )

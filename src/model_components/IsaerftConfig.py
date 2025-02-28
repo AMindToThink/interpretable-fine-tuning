@@ -1,9 +1,14 @@
 # Import PeftConfig
-from peft import PeftConfig
+from peft.config import PeftConfig
+from peft.utils import PeftType
 
 from dataclasses import asdict, dataclass, field
 from typing import Union, List, Optional
-
+# 1. Add your PEFT type to the PeftType enum
+if not hasattr(PeftType, "ISAERFT"):
+    # This adds the ISAERFT type to the PeftType enum
+    PeftType.ISAERFT = "ISAERFT"
+    
 @dataclass
 class IsaerftConfig(PeftConfig):
     """
@@ -36,7 +41,7 @@ class IsaerftConfig(PeftConfig):
     
     def __post_init__(self):
         super().__post_init__()
-
+        self.peft_type = PeftType.ISAERFT;
         if self.depth < 1 and (self.hidden_size is not None):
             raise ValueError("`hidden_size` must be None if there are no hidden parameters! (ie, when `depth` is less than 1)")
 
@@ -50,6 +55,73 @@ class IsaerftConfig(PeftConfig):
             raise ValueError("`target_hooks` must be a list of pairs.")
 
         
+if __name__ == "__main__":
+    # Test valid configurations
+    print("Testing valid configurations...")
+    
+    # Test basic config with bias only
+    basic_config = IsaerftConfig(
+        target_hooks=[("pythia-70m-deduped-res-sm", "blocks.4.hook_resid_post")]
+    )
+    print("Basic config (bias only) created successfully")
+
+    # Test config with linear layer
+    linear_config = IsaerftConfig(
+        target_hooks=[("pythia-70m-deduped-res-sm", "blocks.4.hook_resid_post")],
+        depth=0,
+        lora_r=8
+    )
+    print("Linear layer config created successfully")
+
+    # Test config with hidden layers
+    ffnn_config = IsaerftConfig(
+        target_hooks=[("pythia-70m-deduped-res-sm", "blocks.4.hook_resid_post")],
+        depth=2,
+        hidden_size=128,
+        lora_r=8
+    )
+    print("FFNN config created successfully")
+
+    # Test invalid configurations
+    print("\nTesting invalid configurations...")
+    
+    try:
+        # Should fail: hidden_size provided with bias-only
+        IsaerftConfig(
+            target_hooks=[("pythia-70m-deduped-res-sm", "blocks.4.hook_resid_post")],
+            depth=-1,
+            hidden_size=128
+        )
+    except ValueError as e:
+        print(f"Caught expected error: {e}")
+
+    try:
+        # Should fail: lora_r provided with bias-only
+        IsaerftConfig(
+            target_hooks=[("pythia-70m-deduped-res-sm", "blocks.4.hook_resid_post")],
+            depth=-1,
+            lora_r=8
+        )
+    except ValueError as e:
+        print(f"Caught expected error: {e}")
+
+    try:
+        # Should fail: empty target_hooks
+        IsaerftConfig(
+            target_hooks=[]
+        )
+    except ValueError as e:
+        print(f"Caught expected error: {e}")
+
+    try:
+        # Should fail: malformed target_hooks
+        IsaerftConfig(
+            target_hooks=[("only_one_element")]
+        )
+    except ValueError as e:
+        print(f"Caught expected error: {e}")
+
+    print("\nAll tests completed!")
 
 
 
