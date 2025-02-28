@@ -93,7 +93,7 @@ finetune_tags = ["smol-course", "module_1", "isaerft"]
 # Training hyperparameters
 hyperparams = {
     "learning_rate": 5e-5,
-    "num_epochs": 3,
+    "max_steps": 1000,
     "batch_size": 4,
     "gradient_accumulation_steps": 4,
     "train_size": 20000
@@ -142,16 +142,20 @@ val_dataset = val_dataset.map(extract_moss_responses)
 #%%
 # Configure SFT Trainer
 sft_config = SFTConfig(
-    learning_rate=hyperparams["learning_rate"],
-    num_train_epochs=hyperparams["num_epochs"],
-    per_device_train_batch_size=hyperparams["batch_size"],
+    output_dir=f"./models/{finetune_name}",
+    max_steps=hyperparams['max_steps'],  # Adjust based on dataset size and desired training duration
+    per_device_train_batch_size=hyperparams["batch_size"],  # Set according to your GPU memory capacity
+    learning_rate=hyperparams['learning_rate'],  # Common starting point for fine-tuning
     gradient_accumulation_steps=hyperparams["gradient_accumulation_steps"],
     gradient_checkpointing=False,
-    optim="adamw_torch",
-    logging_steps=10,
-    evaluation_strategy="epoch",
-    save_strategy="epoch",
-    output_dir=f"./models/{finetune_name}",
+    logging_steps=10,  # Frequency of logging training metrics
+    save_steps=100,  # Frequency of saving model checkpoints
+    evaluation_strategy="steps",  # Evaluate the model at regular intervals
+    eval_steps=50,  # Frequency of evaluation
+    use_mps_device=(
+        True if device == "mps" else False
+    ),  # Use MPS for mixed precision training
+    hub_model_id=finetune_name,  # Set a unique name for your model
     report_to="wandb",
 )
 

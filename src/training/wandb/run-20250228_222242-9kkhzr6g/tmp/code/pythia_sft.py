@@ -93,7 +93,7 @@ finetune_tags = ["smol-course", "module_1", "isaerft"]
 # Training hyperparameters
 hyperparams = {
     "learning_rate": 5e-5,
-    "num_epochs": 3,
+    "max_steps": 1000,
     "batch_size": 4,
     "gradient_accumulation_steps": 4,
     "train_size": 20000
@@ -154,16 +154,29 @@ sft_config = SFTConfig(
     output_dir=f"./models/{finetune_name}",
     report_to="wandb",
 )
+sft_config = SFTConfig(
+    output_dir="./sft_output",
+    max_steps=hyperparams['max_steps'],  # Adjust based on dataset size and desired training duration
+    per_device_train_batch_size=4,  # Set according to your GPU memory capacity
+    learning_rate=hyperparams['learning_rate'],  # Common starting point for fine-tuning
+    logging_steps=10,  # Frequency of logging training metrics
+    save_steps=100,  # Frequency of saving model checkpoints
+    evaluation_strategy="steps",  # Evaluate the model at regular intervals
+    eval_steps=50,  # Frequency of evaluation
+    use_mps_device=(
+        True if device == "mps" else False
+    ),  # Use MPS for mixed precision training
+    hub_model_id=finetune_name,  # Set a unique name for your model
+)
 
 # Create SFT Trainer
 trainer = SFTTrainer(
     model=model,
     tokenizer=tokenizer,
-    train_dataset=train_dataset,
-    eval_dataset=val_dataset,
+    train_dataset=train_dataset["moss_responses"],
+    eval_dataset=val_dataset["moss_responses"],
     args=sft_config,
-    dataset_text_field="moss_responses",  # Use extracted MOSS responses
-    max_seq_length=512,
+    # max_seq_length=512,
 )
 
 # Train the model
@@ -203,7 +216,8 @@ if os.environ.get('PUSH_TO_HUB', 'false').lower() == 'true':
     print(f"Model uploaded to Hugging Face Hub as {finetune_name}")
 else:
     print(f"Model saved locally to {trainer.args.output_dir}")
-import pdb;pdb.set_trace()
+
 # Finish wandb run
 wandb.finish()
-#%%
+
+# %%
