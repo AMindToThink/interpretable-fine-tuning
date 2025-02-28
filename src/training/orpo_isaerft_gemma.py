@@ -51,7 +51,6 @@ dataset = load_dataset(path="trl-lib/ultrafeedback_binarized")
 model_name = "google/gemma-2-2b" 
 simpler_model_name = model_name.split('/')[1]
 from datetime import datetime
-run_name=f"run-{simpler_model_name}-{datetime.now().strftime('%Y%m%d-%H%M')}"
 
 # Get the actual device that CUDA is using
 if torch.cuda.is_available():
@@ -65,11 +64,12 @@ print(f"Using device: {device}")
 
 #%%
 # Model to fine-tune
-model = HookedSAETransformer.from_pretrained(
+hooked_sae_transformer = HookedSAETransformer.from_pretrained(
     model_name,
     # torch_dtype=torch.float32,
     # device_map=device
 ).to(device)
+assert isinstance(hooked_sae_transformer, HookedSAETransformer)
 # model.config.use_cache = False
 # tokenizer = AutoTokenizer.from_pretrained(model_name)
 
@@ -115,116 +115,130 @@ isaerft_config = IsaerftConfig(
     depth=-1  # Bias-only for simplicity
 )
 #%%
-# Apply the ISAERFT adapter
-model = IsaerftPeft(model, isaerft_config)
+
 
 #%%
 
 # model, tokenizer = setup_chat_format(model, tokenizer)
 #%%
 # Set our name for the finetune to be saved &/ uploaded to
+run_name=f"run-{simpler_model_name}-{datetime.now().strftime('%Y%m%d-%H%M')}"
 finetune_name = f"{simpler_model_name.upper()}-FT-ORPO-ISAERFT_"+run_name
 finetune_tags = ["smol-course", "module_1", "isaerft"]
 
 #%%
-# Train model with ORPO
-orpo_args = ORPOConfig(
-    # Small learning rate to prevent catastrophic forgetting
-    learning_rate=2e-6,
-    # Linear learning rate decay over training
-    lr_scheduler_type="linear",
-    # Maximum combined length of prompt + completion
-    max_length=1024,
-    # Maximum length for input prompts
-    max_prompt_length=512,
-    # Controls weight of the odds ratio loss (λ in paper)
-    beta=0.1,
-    # Batch size for training
-    per_device_train_batch_size=2,
-    per_device_eval_batch_size=2,
-    # Helps with training stability by accumulating gradients before updating
-    gradient_accumulation_steps=8,
-    # Memory-efficient optimizer for CUDA, falls back to adamw_torch for CPU/MPS
-    optim="paged_adamw_8bit" if ("cuda" in device)else "adamw_torch",
-    # When to run evaluation
-    eval_strategy="steps",
-    # Evaluate every 20% of training
-    eval_steps=0.2,
-    # Log metrics every step
-    logging_steps=1,
-    # Gradual learning rate warmup
-    warmup_steps=10,
-    # Disable external logging
-    report_to="wandb",
-    # Where to save model/checkpoints
-    output_dir="./results/orpo_isaerft/"+run_name,
-    # Enable MPS (Metal Performance Shaders) if available
-    use_mps_device=device == "mps",
-    hub_model_id=finetune_name,
-    # Training for a shorter time for this example
-    num_train_epochs=3,
-    # Ensure device placement is correct
-    no_cuda=False,
-    dataloader_pin_memory=True,
-    dataloader_drop_last=True,
-    dataloader_num_workers=4,
-)
-
-
-#%%
-# Initialize wandb
+# Define sweep configuration
 import wandb
 
-# Make sure any previous wandb run is properly closed
-wandb.finish()
-wandb.login(key=os.environ['WANDB_KEY'])
+sweep_config = {
+    'method': 'random',  # Random search over the parameter space
+    'metric': {
+        'name': 'eval/rewards/margins',  # Metric to optimize
+        'goal': 'maximize'    # We want to maximize the reward margin
+    },
+    'parameters': {
+        'learning_rate': {
+            'distribution': 'log_uniform_values',
+            'min': 1e-6,
+            'max': 5e-5
+        },
+        'beta': {
+            'values': [0.05, 0.1, 0.15, 0.2]  # Different beta values to try
+        }
+    }
+}
 
-wandb.init(
-    project="orpo-isaerft",
-    name=run_name,
-    tags=finetune_tags
-)
-#%%
-# Create the trainer
-trainer = ORPOTrainer(
-    model=model,
-    args=orpo_args,
-    train_dataset=dataset["train"].select(range(10000)),
-    eval_dataset=dataset["test"].select(range(100)),
-    processing_class=tokenizer,
-    # peft_config=isaerft_config, # don't include this; it is one or the other: model is a HookedSAETransformer and peft_config is used to transform it, or model is an IsaerftPeft and no peft_config needed
-    # label_names=["labels"],  # This is the standard label name for causal language models
-    # dataset_num_proc=1,
-)
+# Create the sweep
+sweep_id = wandb.sweep(sweep_config, project="orpo-isaerft-sweep")
 
-#%%
-# Train the model
-# b /home/cs29824/matthew/interpretable-fine-tuning/.venv/lib/python3.11/site-packages/transformer_lens/components/embed.py:34
-# import pdb;pdb.set_trace()
-trainer.train()
+# Define the training function
+def train_model(config=None):
+    with wandb.init(config=config, project="orpo-isaerft-sweep", tags=finetune_tags) as run:
+        config = wandb.config
+        assert isinstance(hooked_sae_transformer, HookedSAETransformer)
+        hooked_sae_transformer.reset_saes()
+        # Apply the ISAERFT adapter
+        model = IsaerftPeft(hooked_sae_transformer, isaerft_config)
+        # Get a unique name for this run
+        current_run_name = f"run-{simpler_model_name}-lr{config.learning_rate:.1e}-beta{config.beta}-{datetime.now().strftime('%Y%m%d-%H%M')}"
+        current_finetune_name = f"{simpler_model_name.upper()}-FT-ORPO-ISAERFT_{current_run_name}"
+        
+        # Train model with ORPO
+        orpo_args = ORPOConfig(
+            # Use the learning rate from sweep config
+            learning_rate=config.learning_rate,
+            # Linear learning rate decay over training
+            lr_scheduler_type="linear",
+            # Maximum combined length of prompt + completion
+            max_length=1024,
+            # Maximum length for input prompts
+            max_prompt_length=512,
+            # Controls weight of the odds ratio loss (λ in paper) - from sweep config
+            beta=config.beta,
+            # Batch size for training
+            per_device_train_batch_size=2,
+            per_device_eval_batch_size=2,
+            # Helps with training stability by accumulating gradients before updating
+            gradient_accumulation_steps=8,
+            # Memory-efficient optimizer for CUDA, falls back to adamw_torch for CPU/MPS
+            optim="paged_adamw_8bit" if ("cuda" in device) else "adamw_torch",
+            # When to run evaluation
+            eval_strategy="steps",
+            # Evaluate every 20% of training
+            eval_steps=0.2,
+            # Log metrics every step
+            logging_steps=1,
+            # Gradual learning rate warmup
+            warmup_steps=10,
+            # Use wandb for logging
+            report_to="wandb",
+            # Where to save model/checkpoints
+            output_dir=f"./results/orpo_isaerft/{current_run_name}",
+            # Enable MPS (Metal Performance Shaders) if available
+            use_mps_device=device == "mps",
+            hub_model_id=current_finetune_name,
+            # Training for a shorter time for this example
+            num_train_epochs=2,
+            # Ensure device placement is correct
+            no_cuda=False,
+            dataloader_pin_memory=True,
+            dataloader_drop_last=True,
+            dataloader_num_workers=4,
+        )
+        
+        # Create the trainer
+        trainer = ORPOTrainer(
+            model=model,
+            args=orpo_args,
+            train_dataset=dataset["train"].select(range(1000)),
+            eval_dataset=dataset["test"].select(range(100)),
+            processing_class=tokenizer,
+        )
+        
+        # Train the model
+        trainer.train()
+        
+        # Save the model
+        trainer.save_model(f"./results/{current_finetune_name}")
+        
+        # Only push the best model to hub (optional)
+        # You could add logic here to only push if this is the best run so far
+        try:
+            print("Pushing model to hub...")
+            trainer.push_to_hub(tags=finetune_tags + [f"lr_{config.learning_rate}", f"beta_{config.beta}"])
+            print("Successfully pushed to hub!")
+        except Exception as e:
+            print(f"Error pushing to hub: {str(e)}")
+            # Alternative manual push
+            print("Attempting manual push...")
+            model.push_to_hub(current_finetune_name, tags=finetune_tags + [f"lr_{config.learning_rate}", f"beta_{config.beta}"])
+            tokenizer.push_to_hub(current_finetune_name, tags=finetune_tags + [f"lr_{config.learning_rate}", f"beta_{config.beta}"])
+            print("Manual push completed!")
 
-#%%
-# Save the model
-trainer.save_model(f"./results/{finetune_name}")
+# Run the sweep
+wandb.agent(sweep_id, train_model, count=10)  # Run 10 experiments
 
-# Finish wandb logging
-wandb.finish()
-
-#%%
-# Push to hub
-try:
-    print("Pushing model to hub...")
-    trainer.push_to_hub(tags=finetune_tags)
-    print("Successfully pushed to hub!")
-except Exception as e:
-    print(f"Error pushing to hub: {str(e)}")
-    # Alternative manual push
-    print("Attempting manual push...")
-    model.push_to_hub(finetune_name, tags=finetune_tags)
-    tokenizer.push_to_hub(finetune_name, tags=finetune_tags)
-    print("Manual push completed!")
-
-print("## 💐 You're done!")
-print("You've successfully fine-tuned a HookedSAETransformer with ISAERFT!")
-print("This approach allows you to align the model by editing interpretable parameters.")
+print("## 💐 Sweep completed!")
+print("You've successfully run a hyperparameter sweep for fine-tuning a HookedSAETransformer with ISAERFT!")
+print("Check your wandb dashboard to see the results and find the best hyperparameters.")
 #%%
