@@ -1,6 +1,6 @@
 # %%
-# %load_ext autoreload
-# %autoreload 2
+%load_ext autoreload
+%autoreload 2
 
 import os
 # YOU HAVE TO SET CUDA_VISIBLE_DEVICES BEFORE DOING ANY IMPORTS OF cuda-related packages! https://discuss.pytorch.org/t/setting-visible-devices-with-distributed-data-parallel/93230
@@ -48,9 +48,6 @@ dataset = load_dataset(path="trl-lib/ultrafeedback_binarized")
 #%%
 # Define the model
 model_name = "EleutherAI/pythia-70m-deduped" 
-from datetime import datetime
-import uuid
-run_name=f"run-{datetime.now().strftime('%Y%m%d-%H%M')}-{uuid.uuid4().hex[:6]}"
 
 # Get the actual device that CUDA is using
 if torch.cuda.is_available():
@@ -115,13 +112,54 @@ isaerft_config = IsaerftConfig(
 #%%
 # Apply the ISAERFT adapter
 model = IsaerftPeft(model, isaerft_config)
+#%%
+# Check device placement of model components
+def check_device():
+    print("Checking device placement of model components...")
+    model_device = next(model.base_model.parameters()).device
+    import torch
+    print(f"{torch.device(device)=}")
+    print(f"{model_device=}")
+    assert model_device == torch.device(device)
+    # Check base model
+    print(f"Base model device: {model_device}")
+
+    assert(all(p[1].device == model_device for p in model.named_parameters()))
+    text = "Hello, world!"
+    input_ids = tokenizer(text, return_tensors="pt").input_ids.to(device)
+    print(f"Input shape: {input_ids.shape}")
+
+
+    # Forward pass
+    output = model(input_ids)
+    print(f"Output shape: {output.shape}")
+    print(tokenizer.apply_chat_template(text, tokenize=False, add_generation_prompt=True))
+    # Run an example through the model to verify forward pass
+    print("Testing model forward pass...")
+
+    # Create a simple test input
+    test_chat = [
+        {"role": "user", "content": "Write a hello world program"}
+    ]
+    test_prompt = tokenizer.apply_chat_template(test_chat, tokenize=False, add_generation_prompt=True)
+    print(test_prompt)
+    # Tokenize input
+    inputs = tokenizer(test_prompt, return_tensors="pt").to(device)
+    print(inputs)
+    # Run forward pass
+    outputs = model(**inputs)
+    print(outputs)
+    print("Forward pass successful!")
+    print(f"Output shape: {outputs.logits.shape}")
+    print(f"Output device: {outputs.logits.device}")
+    assert outputs.logits.device == model_device, "Output device doesn't match model device"
 
 #%%
 
 # model, tokenizer = setup_chat_format(model, tokenizer)
 #%%
 # Set our name for the finetune to be saved &/ uploaded to
-finetune_name = "PYTHIA-FT-ORPO-ISAERFT_"+run_name
+finetune_name = "PYTHIA-FT-ORPO-ISAERFT"
 finetune_tags = ["smol-course", "module_1", "isaerft"]
 
 #%%
@@ -155,30 +193,34 @@ orpo_args = ORPOConfig(
     # Disable external logging
     report_to="wandb",
     # Where to save model/checkpoints
-    output_dir="./results/orpo_isaerft/"+run_name,
+    output_dir="./results/",
     # Enable MPS (Metal Performance Shaders) if available
     use_mps_device=device == "mps",
     hub_model_id=finetune_name,
     # Training for a shorter time for this example
-    num_train_epochs=3,
+    num_train_epochs=(1/4*.25),
     # Ensure device placement is correct
     no_cuda=False,
     dataloader_pin_memory=False,
     dataloader_drop_last=True,
 )
 
+#%%
+thesae = next(iter(model.saes.items()))[1]
+[(k,v) for k,v in thesae.__dict__.items() if hasattr(v, 'device')]
+# thesae.W_E
 
 #%%
 # Initialize wandb
 import wandb
-
-# Make sure any previous wandb run is properly closed
+from datetime import datetime
+import uuid
 wandb.finish()
 wandb.login(key=os.environ['WANDB_KEY'])
 
 wandb.init(
     project="pythia70m-orpo-isaerft",
-    name=run_name,
+    name=f"run-{datetime.now().strftime('%Y%m%d-%H%M')}-{uuid.uuid4().hex[:6]}",
     tags=finetune_tags
 )
 #%%
@@ -186,13 +228,19 @@ wandb.init(
 trainer = ORPOTrainer(
     model=model,
     args=orpo_args,
-    train_dataset=dataset["train"].select(range(10000)),
-    eval_dataset=dataset["test"].select(range(100)),
+    train_dataset=dataset["train"].select(range(100)),
+    eval_dataset=dataset["test"].select(range(10)),
     processing_class=tokenizer,
-    # peft_config=isaerft_config, # don't include this; it is one or the other: model is a HookedSAETransformer and peft_config is used to transform it, or model is an IsaerftPeft and no peft_config needed
+    peft_config=isaerft_config,
     # label_names=["labels"],  # This is the standard label name for causal language models
     # dataset_num_proc=1,
 )
+
+# Get the actual device the model is on
+model_device = next(model.parameters()).device
+print(f"Model is on device: {model_device}")
+
+
 
 #%%
 # Train the model
@@ -202,7 +250,7 @@ trainer.train()
 
 #%%
 # Save the model
-trainer.save_model(f"./results/{finetune_name}")
+trainer.save_model(f"./{finetune_name}")
 
 # Finish wandb logging
 wandb.finish()
@@ -222,6 +270,6 @@ except Exception as e:
     print("Manual push completed!")
 
 print("## 💐 You're done!")
-print("You've successfully fine-tuned a HookedSAETransformer with ISAERFT!")
-print("This approach allows you to align the model by editing interpretable parameters.")
+print("You've successfully fine-tuned SmolLM2 with ORPO and ISAERFT!")
+print("This approach allows you to align the model while only training a small number of parameters.")
 #%%
