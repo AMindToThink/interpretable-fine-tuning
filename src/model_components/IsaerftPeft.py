@@ -141,6 +141,7 @@ class IsaerftModel(nn.Module):
                         release=release,
                         sae_id=sae_id
                     )
+                    sae.use_error_term = True
                     sae = sae.to(self.device)
                     # Freeze the SAE parameters
                     for param in sae.parameters():

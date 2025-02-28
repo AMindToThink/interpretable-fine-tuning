@@ -48,9 +48,9 @@ dataset = load_dataset(path="trl-lib/ultrafeedback_binarized")
 #%%
 # Define the model
 model_name = "EleutherAI/pythia-70m-deduped" 
+simpler_model_name = model_name.split('/')[1]
 from datetime import datetime
-import uuid
-run_name=f"run-{datetime.now().strftime('%Y%m%d-%H%M')}-{uuid.uuid4().hex[:6]}"
+run_name=f"run-{simpler_model_name}-{datetime.now().strftime('%Y%m%d-%H%M')}"
 
 # Get the actual device that CUDA is using
 if torch.cuda.is_available():
@@ -104,11 +104,12 @@ tokenizer.chat_template = chat_template
 # Apply ISAERFT to the model
 from sae_lens import SAE
 
-release = "pythia-70m-deduped-res-sm"
-sae_id = "blocks.4.hook_resid_post"
+example_releases_ids = {
+    "EleutherAI/pythia-70m-deduped":("pythia-70m-deduped-res-sm", "blocks.4.hook_resid_post"),
+    "google/gemma-2-2b": ("gemma-scope-2b-pt-res-canonical","layer_20/width_16k/canonical")} 
 isaerft_config = IsaerftConfig(
     target_hooks=[
-        (release, sae_id),
+        example_releases_ids[model_name],
     ],
     depth=-1  # Bias-only for simplicity
 )
@@ -121,14 +122,14 @@ model = IsaerftPeft(model, isaerft_config)
 # model, tokenizer = setup_chat_format(model, tokenizer)
 #%%
 # Set our name for the finetune to be saved &/ uploaded to
-finetune_name = "PYTHIA-FT-ORPO-ISAERFT_"+run_name
+finetune_name = f"{simpler_model_name.upper()}-FT-ORPO-ISAERFT_"+run_name
 finetune_tags = ["smol-course", "module_1", "isaerft"]
 
 #%%
 # Train model with ORPO
 orpo_args = ORPOConfig(
     # Small learning rate to prevent catastrophic forgetting
-    learning_rate=8e-6,
+    learning_rate=2e-6,
     # Linear learning rate decay over training
     lr_scheduler_type="linear",
     # Maximum combined length of prompt + completion
@@ -138,8 +139,8 @@ orpo_args = ORPOConfig(
     # Controls weight of the odds ratio loss (λ in paper)
     beta=0.1,
     # Batch size for training
-    per_device_train_batch_size=2,
-    per_device_eval_batch_size=2,
+    per_device_train_batch_size=4,
+    per_device_eval_batch_size=4,
     # Helps with training stability by accumulating gradients before updating
     gradient_accumulation_steps=8,
     # Memory-efficient optimizer for CUDA, falls back to adamw_torch for CPU/MPS
@@ -163,8 +164,9 @@ orpo_args = ORPOConfig(
     num_train_epochs=3,
     # Ensure device placement is correct
     no_cuda=False,
-    dataloader_pin_memory=False,
+    dataloader_pin_memory=True,
     dataloader_drop_last=True,
+    dataloader_num_workers=4,
 )
 
 
@@ -177,7 +179,7 @@ wandb.finish()
 wandb.login(key=os.environ['WANDB_KEY'])
 
 wandb.init(
-    project="pythia70m-orpo-isaerft",
+    project="orpo-isaerft",
     name=run_name,
     tags=finetune_tags
 )

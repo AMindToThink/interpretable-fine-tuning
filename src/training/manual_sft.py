@@ -103,12 +103,12 @@ tokenizer.chat_template = chat_template
 #%%
 # Apply ISAERFT to the model
 from sae_lens import SAE
-
-release = "pythia-70m-deduped-res-sm"
-sae_id = "blocks.4.hook_resid_post"
+example_releases_ids = {
+    "EleutherAI/pythia-70m-deduped":("pythia-70m-deduped-res-sm", "blocks.4.hook_resid_post"),
+    "google/gemma-2-2b": ("gemma-scope-2b-pt-res-canonical","layer_20/width_16k/canonical")} 
 isaerft_config = IsaerftConfig(
     target_hooks=[
-        (release, sae_id),
+        example_releases_ids[model_name],
     ],
     depth=-1  # Bias-only for simplicity
 )
@@ -121,7 +121,7 @@ model = IsaerftPeft(model, isaerft_config)
 # model, tokenizer = setup_chat_format(model, tokenizer)
 #%%
 # Set our name for the finetune to be saved &/ uploaded to
-finetune_name = "PYTHIA-FT-SFT-ISAERFT"
+finetune_name = model_name.replace('/','-') + "_FT-SFT-ISAERFT"
 finetune_tags = ["smol-course", "module_1", "isaerft"]
 
 #%%
