@@ -1,0 +1,7 @@
+{
+    "learning_rate": 5e-5,
+    "max_steps": 1000,
+    "batch_size": 4,
+    "gradient_accumulation_steps": 4,
+    "train_size": 20000
+} 

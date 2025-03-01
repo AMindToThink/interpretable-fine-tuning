@@ -1,0 +1,52 @@
+{
+  "os":  "Linux-5.4.0-1125-kvm-x86_64-with-glibc2.31",
+  "python":  "CPython 3.11.11",
+  "startedAt":  "2025-02-28T23:03:35.774822Z",
+  "args":  [
+    "--config",
+    "configs/pythia_sft_test_hyperparams.json"
+  ],
+  "program":  "/home/cs29824/matthew/interpretable-fine-tuning/src/training/pythia_sft.py",
+  "codePath":  "src/training/pythia_sft.py",
+  "git":  {
+    "remote":  "https://AMindToThink:@github.com/AMindToThink/interpretable-fine-tuning.git",
+    "commit":  "d3a95cf41264fbfd10829be768c7a48e79d071f1"
+  },
+  "email":  "matthewkhoriaty@gmail.com",
+  "root":  "/home/cs29824/matthew/interpretable-fine-tuning/src/training",
+  "host":  "sting-vm-1",
+  "executable":  "/home/cs29824/matthew/interpretable-fine-tuning/.venv/bin/python",
+  "codePathLocal":  "pythia_sft.py",
+  "cpu_count":  16,
+  "cpu_count_logical":  16,
+  "gpu":  "Quadro RTX 8000",
+  "gpu_count":  2,
+  "disk":  {
+    "/":  {
+      "total":  "1585741201408",
+      "used":  "1534102695936"
+    }
+  },
+  "memory":  {
+    "total":  "135100264448"
+  },
+  "cpu":  {
+    "count":  16,
+    "countLogical":  16
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "Quadro RTX 8000",
+      "memoryTotal":  "48318382080",
+      "cudaCores":  4608,
+      "architecture":  "Turing"
+    },
+    {
+      "name":  "Quadro RTX 8000",
+      "memoryTotal":  "48318382080",
+      "cudaCores":  4608,
+      "architecture":  "Turing"
+    }
+  ],
+  "cudaVersion":  "12.3"
+}
