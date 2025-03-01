@@ -153,14 +153,25 @@ sweep_id = wandb.sweep(sweep_config, project="orpo-isaerft-sweep")
 
 # Define the training function
 def train_model(config=None):
-    with wandb.init(config=config, project="orpo-isaerft-sweep", tags=finetune_tags) as run:
+    # The config parameter should be properly passed by wandb.agent
+    # We shouldn't need to create a default here if the sweep is configured correctly
+    with wandb.init(project="orpo-isaerft-sweep", tags=finetune_tags, config=config) as run:
+        # Get the config from the wandb run
         config = wandb.config
+        
+        # Create a descriptive name based on the actual config values
+        run_name = f"{simpler_model_name}-lr{config.learning_rate:.1e}-beta{config.beta}"
+        # Update the run name
+        wandb.run.name = run_name
+        wandb.run.save()
+        
         assert isinstance(hooked_sae_transformer, HookedSAETransformer)
         hooked_sae_transformer.reset_saes()
         # Apply the ISAERFT adapter
         model = IsaerftPeft(hooked_sae_transformer, isaerft_config)
-        # Get a unique name for this run
-        current_run_name = f"run-{simpler_model_name}-lr{config.learning_rate:.1e}-beta{config.beta}-{datetime.now().strftime('%Y%m%d-%H%M')}"
+        
+        # Use the same naming convention for saved files
+        current_run_name = f"{run_name}-{datetime.now().strftime('%Y%m%d-%H%M')}"
         current_finetune_name = f"{simpler_model_name.upper()}-FT-ORPO-ISAERFT_{current_run_name}"
         
         # Train model with ORPO
@@ -198,7 +209,7 @@ def train_model(config=None):
             use_mps_device=device == "mps",
             hub_model_id=current_finetune_name,
             # Training for a shorter time for this example
-            num_train_epochs=2,
+            num_train_epochs=1,
             # Ensure device placement is correct
             no_cuda=False,
             dataloader_pin_memory=True,
