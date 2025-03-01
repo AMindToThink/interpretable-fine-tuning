@@ -12,6 +12,7 @@ from transformers import AutoTokenizer
 from trl import SFTTrainer, SFTConfig
 from sae_lens import HookedSAETransformer
 from huggingface_hub import login
+import argparse
 
 # Import our custom ISAERFT components
 try:
@@ -90,14 +91,15 @@ timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M')
 finetune_name = model_name.replace('/', '-') + f"_FT-SFT-ISAERFT_{timestamp}"
 finetune_tags = ["smol-course", "module_1", "isaerft"]
 
-# Training hyperparameters
-hyperparams = {
-    "learning_rate": 5e-5,
-    "max_steps": 1000,
-    "batch_size": 4,
-    "gradient_accumulation_steps": 4,
-    "train_size": 20000
-}
+# Add argument parser
+parser = argparse.ArgumentParser(description='Fine-tune a model with ISAERFT')
+parser.add_argument('--config', type=str, default='configs/default_hyperparams.json',
+                   help='Path to hyperparameters config JSON file')
+args = parser.parse_args()
+
+# Load hyperparameters from JSON
+with open(args.config, 'r') as f:
+    hyperparams = json.load(f)
 
 # Initialize wandb
 wandb.init(
@@ -106,7 +108,7 @@ wandb.init(
     config={
         "model_name": model_name,
         "learning_rate": hyperparams["learning_rate"],
-        "num_epochs": hyperparams["num_epochs"],
+        "max_steps": hyperparams["max_steps"],
         "batch_size": hyperparams["batch_size"],
         "gradient_accumulation_steps": hyperparams["gradient_accumulation_steps"],
         "sae_release": release,
@@ -142,23 +144,12 @@ val_dataset = val_dataset.map(extract_moss_responses)
 #%%
 # Configure SFT Trainer
 sft_config = SFTConfig(
-    learning_rate=hyperparams["learning_rate"],
-    num_train_epochs=hyperparams["num_epochs"],
-    per_device_train_batch_size=hyperparams["batch_size"],
+    output_dir=f"./models/{finetune_name}",
+    max_steps=hyperparams['max_steps'],  # Adjust based on dataset size and desired training duration
+    per_device_train_batch_size=hyperparams["batch_size"],  # Set according to your GPU memory capacity
+    learning_rate=hyperparams['learning_rate'],  # Common starting point for fine-tuning
     gradient_accumulation_steps=hyperparams["gradient_accumulation_steps"],
     gradient_checkpointing=False,
-    optim="adamw_torch",
-    logging_steps=10,
-    evaluation_strategy="epoch",
-    save_strategy="epoch",
-    output_dir=f"./models/{finetune_name}",
-    report_to="wandb",
-)
-sft_config = SFTConfig(
-    output_dir="./sft_output",
-    max_steps=hyperparams['max_steps'],  # Adjust based on dataset size and desired training duration
-    per_device_train_batch_size=4,  # Set according to your GPU memory capacity
-    learning_rate=hyperparams['learning_rate'],  # Common starting point for fine-tuning
     logging_steps=10,  # Frequency of logging training metrics
     save_steps=100,  # Frequency of saving model checkpoints
     evaluation_strategy="steps",  # Evaluate the model at regular intervals
@@ -167,6 +158,7 @@ sft_config = SFTConfig(
         True if device == "mps" else False
     ),  # Use MPS for mixed precision training
     hub_model_id=finetune_name,  # Set a unique name for your model
+    report_to="wandb",
 )
 
 # Create SFT Trainer

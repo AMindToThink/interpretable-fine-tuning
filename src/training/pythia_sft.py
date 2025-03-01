@@ -1,3 +1,4 @@
+raise NotImplementedError("I get an error about the tokenization, sadly.")
 #%%
 # Import libraries
 import os
@@ -12,6 +13,7 @@ from transformers import AutoTokenizer
 from trl import SFTTrainer, SFTConfig
 from sae_lens import HookedSAETransformer
 from huggingface_hub import login
+import argparse
 
 # Import our custom ISAERFT components
 try:
@@ -90,14 +92,15 @@ timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M')
 finetune_name = model_name.replace('/', '-') + f"_FT-SFT-ISAERFT_{timestamp}"
 finetune_tags = ["smol-course", "module_1", "isaerft"]
 
-# Training hyperparameters
-hyperparams = {
-    "learning_rate": 5e-5,
-    "max_steps": 1000,
-    "batch_size": 4,
-    "gradient_accumulation_steps": 4,
-    "train_size": 20000
-}
+# Add argument parser
+parser = argparse.ArgumentParser(description='Fine-tune a model with ISAERFT')
+parser.add_argument('--config', type=str, default='configs/default_hyperparams.json',
+                   help='Path to hyperparameters config JSON file')
+args = parser.parse_args()
+
+# Load hyperparameters from JSON
+with open(args.config, 'r') as f:
+    hyperparams = json.load(f)
 
 # Initialize wandb
 wandb.init(
@@ -106,7 +109,7 @@ wandb.init(
     config={
         "model_name": model_name,
         "learning_rate": hyperparams["learning_rate"],
-        "num_epochs": hyperparams["num_epochs"],
+        "max_steps": hyperparams["max_steps"],
         "batch_size": hyperparams["batch_size"],
         "gradient_accumulation_steps": hyperparams["gradient_accumulation_steps"],
         "sae_release": release,
@@ -115,10 +118,13 @@ wandb.init(
 )
 
 # Prepare the dataset
-train_dataset = dataset["train"].select(range(hyperparams["train_size"]))
+train_dataset = dataset["train"]
+if hyperparams["train_size"] > 0:
+    train_dataset = train_dataset.select(range(min(hyperparams["train_size"], len(train_dataset))))
+
 train_val_split = int(0.9 * len(train_dataset))
-val_dataset = train_dataset.select(range(train_val_split, len(train_dataset)))
-train_dataset = train_dataset.select(range(train_val_split))
+train_split = train_dataset.select(range(train_val_split))
+val_split = train_dataset.select(range(train_val_split, len(train_dataset)))
 
 # Preprocess the dataset to extract MOSS responses
 def extract_moss_responses(example):
@@ -134,12 +140,27 @@ def extract_moss_responses(example):
             moss_responses.append(response)
     
     # Join all responses with newlines if there are multiple
-    return {"moss_responses": "\n\n".join(moss_responses)}
+    text = "\n\n".join(moss_responses)
+    
+    # Tokenize with padding and truncation
+    return tokenizer(
+        text,
+        truncation=True,
+        padding='max_length',
+        max_length=512,
+        return_tensors=None  # Return as lists rather than tensors
+    )
 
 # Apply preprocessing
-train_dataset = train_dataset.map(extract_moss_responses)
-val_dataset = val_dataset.map(extract_moss_responses)
-#%%
+train_dataset = train_split.map(
+    extract_moss_responses,
+    remove_columns=train_split.column_names
+)
+val_dataset = val_split.map(
+    extract_moss_responses,
+    remove_columns=val_split.column_names
+)
+
 # Configure SFT Trainer
 sft_config = SFTConfig(
     output_dir=f"./models/{finetune_name}",
@@ -157,16 +178,19 @@ sft_config = SFTConfig(
     ),  # Use MPS for mixed precision training
     hub_model_id=finetune_name,  # Set a unique name for your model
     report_to="wandb",
+    dataset_text_field="text",
+    remove_unused_columns=False,
+    max_seq_length=512,
 )
 
 # Create SFT Trainer
 trainer = SFTTrainer(
     model=model,
-    tokenizer=tokenizer,
-    train_dataset=train_dataset["moss_responses"],
-    eval_dataset=val_dataset["moss_responses"],
+    # tokenizer=tokenizer,
     args=sft_config,
-    # max_seq_length=512,
+    train_dataset=train_dataset,
+    eval_dataset=val_dataset,
+    processing_class=tokenizer
 )
 
 # Train the model

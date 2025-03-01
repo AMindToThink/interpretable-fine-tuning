@@ -63,7 +63,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Interpret trainable parameters from a JSON file or string")
     parser.add_argument("json_input", help="JSON file path or JSON string containing 'values' key")
     parser.add_argument("--release", default="gemma-scope-2b-pt-res-canonical", help="SAE release name")
-    parser.add_argument("--sae_id", default="layer_25/width_16k/canonical", help="SAE ID")
+    parser.add_argument("--sae_id", default="layer_20/width_16k/canonical", help="SAE ID")
     parser.add_argument("--interpretation_type", default="identity", help="Type of interpretation")
     parser.add_argument("--top_k", type=int, default=20, help="Number of top features to return")
     parser.add_argument("--bottom_k", type=int, default=20, help="Number of bottom features to return")
