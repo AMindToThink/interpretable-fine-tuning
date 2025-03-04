@@ -2,7 +2,7 @@
 import os
 import torch
 os.environ['CUDA_VISIBLE_DEVICES'] =''
-os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+os.environ['TOKENIZERS_PARALLELISM'] = 'true'
 print(torch.cuda.device_count())
 # %%
 # Import libraries
@@ -136,33 +136,33 @@ def check_parameter_changes_with_trainer(model, tokenizer):
     dataset = load_dataset(path="trl-lib/ultrafeedback_binarized")
 
     # Print dataset structure
-    orpo_args = ORPOConfig(# seriously, you better not use these hyperparameters for anything important.
+    orpo_args = ORPOConfig(
         max_steps=1,
         # Use the learning rate from sweep config
         learning_rate=100, # really big because we want to see a change
         # Linear learning rate decay over training
         lr_scheduler_type="linear",
         # Maximum combined length of prompt + completion
-        max_length=16,
+        max_length=8,
         # Maximum length for input prompts
-        max_prompt_length=16,
+        max_prompt_length=8,
         # Controls weight of the odds ratio loss (λ in paper) - from sweep config
         # beta=config.beta,
         # Batch size for training
-        # per_device_train_batch_size=2,
-        # per_device_eval_batch_size=2,
+        per_device_train_batch_size=2,
+        per_device_eval_batch_size=2,
         # Helps with training stability by accumulating gradients before updating
         gradient_accumulation_steps=8,
         # Memory-efficient optimizer for CUDA, falls back to adamw_torch for CPU/MPS
         optim="adamw_torch",
         # When to run evaluation
-        # eval_strategy="steps",
+        eval_strategy="steps",
         # Evaluate every 20% of training
-        # eval_steps=0.2,
+        eval_steps=0.2,
         # Log metrics every step
         logging_steps=1,
         # Gradual learning rate warmup
-        # warmup_steps=10,
+        warmup_steps=10,
         # Use wandb for logging
         # report_to="wandb",
         # Where to save model/checkpoints
@@ -178,14 +178,13 @@ def check_parameter_changes_with_trainer(model, tokenizer):
         dataloader_drop_last=True,
         dataloader_num_workers=4,
     )
-    dtrain = dataset["train"].select(range(1))
-    print(len(dtrain))
+    
     # Create the trainer
     trainer = ORPOTrainer(
         model=model,
         args=orpo_args,
-        train_dataset=dataset["train"].select(range(1)),
-        # eval_dataset=dataset["test"].select(range(100)),
+        train_dataset=dataset["train"].select(range(1000)),
+        eval_dataset=dataset["test"].select(range(100)),
         processing_class=tokenizer,
     )
     print('starting training')

@@ -1,0 +1,70 @@
+{
+  "best_metric": null,
+  "best_model_checkpoint": null,
+  "epoch": 0.016,
+  "eval_steps": 1,
+  "global_step": 1,
+  "is_hyper_param_search": false,
+  "is_local_process_zero": true,
+  "is_world_process_zero": true,
+  "log_history": [
+    {
+      "epoch": 0.016,
+      "grad_norm": NaN,
+      "learning_rate": 10.0,
+      "log_odds_chosen": NaN,
+      "log_odds_ratio": NaN,
+      "logits/chosen": -4.831548690795898,
+      "logits/rejected": -4.831549644470215,
+      "logps/chosen": NaN,
+      "logps/rejected": NaN,
+      "loss": 0.0,
+      "nll_loss": 18.173585891723633,
+      "rewards/accuracies": 0.0,
+      "rewards/chosen": NaN,
+      "rewards/margins": NaN,
+      "rewards/rejected": NaN,
+      "step": 1
+    },
+    {
+      "epoch": 0.016,
+      "eval_log_odds_chosen": NaN,
+      "eval_log_odds_ratio": NaN,
+      "eval_logits/chosen": NaN,
+      "eval_logits/rejected": NaN,
+      "eval_logps/chosen": NaN,
+      "eval_logps/rejected": NaN,
+      "eval_loss": NaN,
+      "eval_nll_loss": NaN,
+      "eval_rewards/accuracies": 0.0,
+      "eval_rewards/chosen": NaN,
+      "eval_rewards/margins": NaN,
+      "eval_rewards/rejected": NaN,
+      "eval_runtime": 38.4753,
+      "eval_samples_per_second": 2.599,
+      "eval_steps_per_second": 1.3,
+      "step": 1
+    }
+  ],
+  "logging_steps": 1,
+  "max_steps": 1,
+  "num_input_tokens_seen": 0,
+  "num_train_epochs": 1,
+  "save_steps": 500,
+  "stateful_callbacks": {
+    "TrainerControl": {
+      "args": {
+        "should_epoch_stop": false,
+        "should_evaluate": false,
+        "should_log": false,
+        "should_save": true,
+        "should_training_stop": true
+      },
+      "attributes": {}
+    }
+  },
+  "total_flos": 0.0,
+  "train_batch_size": 2,
+  "trial_name": null,
+  "trial_params": null
+}

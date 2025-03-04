@@ -316,7 +316,7 @@ class IsaerftPeft(PeftModel):
         # import pdb;pdb.set_trace()
         # Pop use_cache if present since model doesn't support it
         assert not kwargs.pop('use_cache', None), "Sorry, HookedSAETransformer doesn't have use_cache. Please make it either false or don't give it."
-        
+        import pdb;pdb.set_trace()
         return self.base_model(*args, **kwargs)
     
     def get_base_model(self):
