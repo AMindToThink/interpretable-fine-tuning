@@ -1,5 +1,7 @@
 In-progress experimentation into whether trained components that act on SAE-latents can fine-tune models in a way that results in easy to understand algorithms (diffs).
 
+Unfortunately unusable until I finish making ISaeRFTModel extend BaseTuner.  
+
 I made this repo public before it is really ready so I can include it with my applicaiton to Neel Nanda's MATS.
 
 
