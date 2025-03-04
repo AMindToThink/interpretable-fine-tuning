@@ -42,10 +42,10 @@ def resid_hook(sae_acts, hook, residual_block):
 #%%
 class IsaerftModel(nn.Module):
     """Implementation of the ISAERFT model"""
-    def __init__(self, model, config, adapter_name, device='cuda:0'):
+    def __init__(self, model, config, adapter_name):
         super().__init__()
         self.model = model
-        self.device=device
+        self.device = next(model.parameters()).device
         self.config = AutoConfig.from_pretrained(model.cfg.tokenizer_name)
         self.peft_config = config
         self.active_adapter = adapter_name
