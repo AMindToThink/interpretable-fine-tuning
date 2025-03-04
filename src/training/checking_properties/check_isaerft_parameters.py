@@ -1,3 +1,6 @@
+# Things I've checked:
+# the gradients go through the learned bias
+# it is the only thing with gradients
 # %%
 import os
 import torch
@@ -217,7 +220,7 @@ def check_parameter_changes_with_trainer(model, tokenizer):
         processed_eval = HFDataset.from_list(formatted_eval)
     
     print('Starting training')
-    
+    import pdb;pdb.set_trace()
     # Create the trainer
     trainer = ORPOTrainer(
         model=model,

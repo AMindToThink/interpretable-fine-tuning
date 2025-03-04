@@ -348,7 +348,7 @@ if __name__ == "__main__":
 
     # Load model
     print("Loading HookedSAETransformer...")
-    model = HookedSAETransformer.from_pretrained("google/gemma-2-2b", device=device, device_map=device)
+    model = HookedSAETransformer.from_pretrained("google/gemma-2-2b", device=device).to(device)
     print(f"Model loaded: {model.cfg.model_name}")
     #%%
     # Create IsaerftConfig
@@ -379,7 +379,7 @@ if __name__ == "__main__":
     # Test with a simple input
     print("\nTesting forward pass...")
     tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b")
-    text = "Hello, world!"
+    text = "Hello!"
     input_ids = tokenizer(text, return_tensors="pt").input_ids.to(device)
     print(f"Input shape: {input_ids.shape}")
 
@@ -388,15 +388,16 @@ if __name__ == "__main__":
 
     # Forward pass
     output = peft_model(input_ids)
-    print(f"Output shape: {output.shape}")
+    print(f"Output shape: {output.logits.shape}")
     #%%
-    print(output.sum())
+    print(output.logits.sum())
     #%%
     # Compute loss and backpropagate
     print("\nTesting backward pass...")
-    loss = output.abs().sum()
+    loss = output.logits.abs().sum()
     print(f"Loss: {loss.item()}")
     loss.backward()
+    print(peft_model.trainable_blocks['blocks_25_hook_resid_post'].sequential[0].bias.grad.norm().item())
     #%%
     # Check if gradients are flowing to the trainable parameters
     print("\nChecking gradients:")
