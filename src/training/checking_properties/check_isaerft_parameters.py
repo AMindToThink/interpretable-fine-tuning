@@ -135,59 +135,98 @@ def check_parameter_changes_with_trainer(model, tokenizer):
     # Load the dataset
     dataset = load_dataset(path="trl-lib/ultrafeedback_binarized")
 
-    # Print dataset structure
+    # Configure ORPO with more reasonable parameters
     orpo_args = ORPOConfig(
         max_steps=1,
-        # Use the learning rate from sweep config
-        learning_rate=100, # really big because we want to see a change
-        # Linear learning rate decay over training
+        learning_rate=0.01,  # More reasonable but still high enough to see changes
         lr_scheduler_type="linear",
-        # Maximum combined length of prompt + completion
-        max_length=8,
-        # Maximum length for input prompts
-        max_prompt_length=8,
-        # Controls weight of the odds ratio loss (λ in paper) - from sweep config
-        # beta=config.beta,
-        # Batch size for training
+        # Use more reasonable sequence lengths
+        max_length=128,  # Increased from 8
+        max_prompt_length=64,  # Increased from 8
         per_device_train_batch_size=2,
         per_device_eval_batch_size=2,
-        # Helps with training stability by accumulating gradients before updating
         gradient_accumulation_steps=8,
-        # Memory-efficient optimizer for CUDA, falls back to adamw_torch for CPU/MPS
         optim="adamw_torch",
-        # When to run evaluation
         eval_strategy="steps",
-        # Evaluate every 20% of training
         eval_steps=0.2,
-        # Log metrics every step
         logging_steps=1,
-        # Gradual learning rate warmup
         warmup_steps=10,
-        # Use wandb for logging
-        # report_to="wandb",
-        # Where to save model/checkpoints
-        # output_dir=f"./results/orpo_isaerft/{current_run_name}",
-        # Enable MPS (Metal Performance Shaders) if available
         use_mps_device=device == "mps",
-        # hub_model_id=current_finetune_name,
-        # Training for a shorter time for this example
         num_train_epochs=1,
-        # Ensure device placement is correct
         no_cuda=True,
         dataloader_pin_memory=True,
         dataloader_drop_last=True,
         dataloader_num_workers=4,
+        # Add gradient clipping to prevent exploding gradients
+        max_grad_norm=1.0,
     )
+    
+    # Process a small subset of data to ensure it's properly formatted
+    processed_train = dataset["train"].select(range(10))
+    processed_eval = dataset["test"].select(range(5))
+    
+    # Ensure the dataset has the required fields
+    if not all(field in processed_train.features for field in ["prompt", "chosen", "rejected"]):
+        # If fields are missing, create a properly formatted dataset
+        formatted_train = []
+        formatted_eval = []
+        
+        for item in processed_train:
+            # Extract or create the required fields based on your dataset structure
+            # This is an example - adjust according to your actual dataset structure
+            if "prompt" not in item and "question" in item:
+                prompt = item["question"]
+            else:
+                prompt = item.get("prompt", "Default prompt")
+                
+            if "chosen" not in item and "response" in item:
+                chosen = item["response"]
+            else:
+                chosen = item.get("chosen", "Default chosen response")
+                
+            if "rejected" not in item:
+                # Create a dummy rejected response if not available
+                rejected = "This is not a good response."
+            else:
+                rejected = item["rejected"]
+                
+            formatted_train.append({"prompt": prompt, "chosen": chosen, "rejected": rejected})
+            
+        # Do the same for eval data
+        for item in processed_eval:
+            if "prompt" not in item and "question" in item:
+                prompt = item["question"]
+            else:
+                prompt = item.get("prompt", "Default prompt")
+                
+            if "chosen" not in item and "response" in item:
+                chosen = item["response"]
+            else:
+                chosen = item.get("chosen", "Default chosen response")
+                
+            if "rejected" not in item:
+                rejected = "This is not a good response."
+            else:
+                rejected = item["rejected"]
+                
+            formatted_eval.append({"prompt": prompt, "chosen": chosen, "rejected": rejected})
+            
+        # Convert to Dataset objects
+        from datasets import Dataset as HFDataset
+        processed_train = HFDataset.from_list(formatted_train)
+        processed_eval = HFDataset.from_list(formatted_eval)
+    
+    print('Starting training')
     
     # Create the trainer
     trainer = ORPOTrainer(
         model=model,
         args=orpo_args,
-        train_dataset=dataset["train"].select(range(1000)),
-        eval_dataset=dataset["test"].select(range(100)),
+        train_dataset=processed_train,
+        eval_dataset=processed_eval,
         processing_class=tokenizer,
     )
-    print('starting training')
+    
     # Train the model
     trainer.train()
     
