@@ -226,7 +226,7 @@ def check_parameter_changes_with_trainer(model, tokenizer):
         eval_dataset=processed_eval,
         processing_class=tokenizer,
     )
-    
+    import pdb;pdb.set_trace()
     # Train the model
     trainer.train()
     
