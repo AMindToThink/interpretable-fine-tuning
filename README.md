@@ -12,3 +12,5 @@ The other src/model_components scripts are modules which would be interesting if
 src/ISaeRFT_Interpreter.py works with src/NeuronpediaClient.py to take a component and interpret what's changed. Right now, only works for BiasOnly (until I can figure out Attribution Patching).
 
 Check out src/training/orpo_isaerft_gemma.py for an example of the training in action.
+
+Read more [here](https://docs.google.com/document/d/1uttDTD16hWF8UriLnMjVOkA-8Lu8-QaAey7560gEVYI/edit?tab=t.0#heading=h.emb46dpogmp)
