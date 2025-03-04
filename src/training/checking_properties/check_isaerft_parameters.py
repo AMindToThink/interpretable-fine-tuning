@@ -4,7 +4,7 @@
 # %%
 import os
 import torch
-os.environ['CUDA_VISIBLE_DEVICES'] =''
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
 os.environ['TOKENIZERS_PARALLELISM'] = 'true'
 print(torch.cuda.device_count())
 # %%
@@ -37,11 +37,11 @@ login(token=os.environ['HUGGINGFACE_WRITE_KEY'])
 model_name = "google/gemma-2-2b"
 
 # Get the actual device that CUDA is using
-# if torch.cuda.is_available():
-#     device = f"cuda:{torch.cuda.current_device()}"
-# else:
-#     device = "mps" if torch.backends.mps.is_available() else "cpu"
-device = 'cpu'
+if torch.cuda.is_available():
+    device = f"cuda:{torch.cuda.current_device()}"
+else:
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+# device = 'cpu'
 
 print(f"Using device: {device}")
 
@@ -121,7 +121,15 @@ else:
 from transformers import Trainer, TrainingArguments
 import copy
 import numpy as np
-
+def try_dpo(model, tokenizer):
+    from trl import DPOConfig, DPOTrainer
+    from datasets import load_dataset
+    train_dataset = load_dataset("trl-lib/ultrafeedback_binarized", split="train").select(range(2))
+    training_args = DPOConfig()
+    trainer = DPOTrainer(model=model, args=training_args, processing_class=tokenizer, train_dataset=train_dataset)
+    trainer.train()
+    import pdb;pdb.set_trace()
+try_dpo(model, tokenizer)
 def check_parameter_changes_with_trainer(model, tokenizer):
     # Move model to CPU for this test
     model_cpu = model.to("cpu")

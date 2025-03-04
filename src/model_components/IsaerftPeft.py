@@ -3,7 +3,8 @@
 import torch
 from torch import nn
 from transformers import AutoConfig
-from peft import PeftModel
+from peft import PeftModel, 
+from peft.tuners.tuners_utils import BaseTuner, BaseTunerLayer
 from sae_lens import HookedSAETransformer, SAE
 from peft.utils import PeftType
 from peft.peft_model import PEFT_TYPE_TO_MODEL_MAPPING
@@ -40,10 +41,10 @@ def resid_hook(sae_acts, hook, residual_block):
     """
     return residual_block(sae_acts)
 #%%
-class IsaerftModel(nn.Module):
+class IsaerftModel(BaseTuner):
     """Implementation of the ISAERFT model"""
     def __init__(self, model, config, adapter_name):
-        super().__init__()
+        super().__init__(model=model, peft_config=config, adapter_name=adapter_name)
         self.model = model
         self.device = next(model.parameters()).device
         self.config = AutoConfig.from_pretrained(model.cfg.tokenizer_name)
@@ -56,6 +57,49 @@ class IsaerftModel(nn.Module):
         
         # Create trainable blocks for each target hook
         self.setup_trainable_blocks()
+
+    # <Required for BaseTuner>
+    @staticmethod
+    def _prepare_adapter_config(isaerft_config, model_config):
+        # I decided this logic didn't look important
+
+        # if peft_config.target_modules is None:
+        #     if model_config["model_type"] not in TRANSFORMERS_MODELS_TO_LORA_TARGET_MODULES_MAPPING:
+        #         raise ValueError("Please specify `target_modules` in `peft_config`")
+        #     peft_config.target_modules = set(
+        #         TRANSFORMERS_MODELS_TO_LORA_TARGET_MODULES_MAPPING[model_config["model_type"]]
+        #     )
+        return isaerft_config
+    
+    def _create_and_replace(
+        self,
+        peft_config: PeftConfig,
+        adapter_name: str,
+        target: nn.Module,
+        target_name: str,
+        parent: nn.Module,
+        current_key: str,
+    ) -> None:
+        r"""
+        Inplace replacement of the target module with the adapter layer. This method needs to be overridden by all the
+        tuner classes.
+
+        Check `peft.tuners.lora.LoraModel._create_and_replace` for an example.
+
+        Args:
+            peft_config (`PeftConfig`):
+                The adapter config.
+            adapter_name (`str`):
+                The adapter name.
+            target (`nn.Module`):
+                The target module.
+            target_name (`str`):
+                The target module's name.
+            parent (`nn.Module`):
+                The parent module.
+            current_key (`str`):
+                The key of the current target being adapted.
+        """
     def resize_token_embeddings(self, num_new_tokens, *args, **kwargs):
         print(f"{num_new_tokens=}")
         assert num_new_tokens == self.config.vocab_size
