@@ -1,0 +1,6 @@
+wandb_version: 1
+
+beta:
+  value: 0.15
+learning_rate:
+  value: 1.035667188850872e-06
