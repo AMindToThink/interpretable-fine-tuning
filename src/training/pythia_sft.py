@@ -1,4 +1,4 @@
-raise NotImplementedError("I get an error about the tokenization, sadly.")
+# raise NotImplementedError("I get an error about the tokenization, sadly.")
 #%%
 # Import libraries
 import os
@@ -10,8 +10,8 @@ import json
 from datetime import datetime
 from datasets import load_dataset
 from transformers import AutoTokenizer
-from trl import SFTTrainer, SFTConfig
-from sae_lens import HookedSAETransformer
+from trl import SFTConfig, SFTTrainer, DataCollatorForCompletionOnlyLM
+
 from huggingface_hub import login
 import argparse
 
@@ -33,7 +33,7 @@ login(token=os.environ['HUGGINGFACE_WRITE_KEY'])
 wandb.login(key=os.environ['WANDB_KEY'])
 
 # Load dataset
-dataset = load_dataset(path="fnlp/moss-002-sft-data")
+dataset = load_dataset(path="AMindToThink/moss-002-sft-data-instruction-output")
 
 # Define the model
 model_name = "EleutherAI/pythia-70m-deduped"
@@ -53,7 +53,7 @@ model = HookedSAETransformer.from_pretrained(
 ).to(device)
 #%%
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-tokenizer.pad_token = tokenizer.eos_token
+# tokenizer.pad_token = tokenizer.eos_token # Todo: is this important?
 #%%
 # # Set up chat template
 # chat_template = """{% for message in messages %}
@@ -126,41 +126,16 @@ train_val_split = int(0.9 * len(train_dataset))
 train_split = train_dataset.select(range(train_val_split))
 val_split = train_dataset.select(range(train_val_split, len(train_dataset)))
 
-# Preprocess the dataset to extract MOSS responses
-def extract_moss_responses(example):
-    text = example["plain_text"]
-    # Split by [MOSS]: and <eoa> to get MOSS responses
-    moss_parts = text.split("[MOSS]: ")
-    
-    # Skip the first part (before first [MOSS]:)
-    moss_responses = []
-    for i in range(1, len(moss_parts)):
-        if "<eoa>" in moss_parts[i]:
-            response = moss_parts[i].split("<eoa>")[0].strip()
-            moss_responses.append(response)
-    
-    # Join all responses with newlines if there are multiple
-    text = "\n\n".join(moss_responses)
-    
-    # Tokenize with padding and truncation
-    return tokenizer(
-        text,
-        truncation=True,
-        padding='max_length',
-        max_length=512,
-        return_tensors=None  # Return as lists rather than tensors
-    )
+def formatting_prompts_func(example):
+    output_texts = []
+    for i in range(len(example['instruction'])):
+        text = f"### Question: {example['instruction'][i]}\n ### Answer: {example['output'][i]}"
+        output_texts.append(text)
+    return output_texts
 
-# Apply preprocessing
-train_dataset = train_split.map(
-    extract_moss_responses,
-    remove_columns=train_split.column_names
-)
-val_dataset = val_split.map(
-    extract_moss_responses,
-    remove_columns=val_split.column_names
-)
-
+# https://huggingface.co/docs/trl/en/sft_trainer#train-on-completions-only
+response_template = " ### Answer:"
+collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
 # Configure SFT Trainer
 sft_config = SFTConfig(
     output_dir=f"./models/{finetune_name}",
@@ -190,7 +165,8 @@ trainer = SFTTrainer(
     args=sft_config,
     train_dataset=train_dataset,
     eval_dataset=val_dataset,
-    processing_class=tokenizer
+    formatting_func=formatting_prompts_func,
+    data_collator=collator
 )
 
 # Train the model

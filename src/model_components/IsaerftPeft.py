@@ -41,7 +41,7 @@ def resid_hook(sae_acts, hook, residual_block):
     """
     return residual_block(sae_acts)
 #%%
-class IsaerftModel(BaseTuner):
+class IsaerftModel(nn.Module):
     """Implementation of the ISAERFT model"""
     def __init__(self, model, config, adapter_name):
         super().__init__(model=model, peft_config=config, adapter_name=adapter_name)
