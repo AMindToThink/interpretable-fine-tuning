@@ -15,7 +15,7 @@ class IsaerftConfig(PeftConfig):
     This class will hold the hyperparameters of an [`ISaeRFTModel`]
     
     Args:
-        target_hooks (`Union[List[str], str]`):
+        target_hooks (`List[tuple[str, str]]`):
             Which of the HookedSAETransformer hook locations should have components added to them during fine-tuning
             # Todo: the neat pattern-matching thing for selecting layers. Also the "exclude_modules" analogue.
         depth (`int`):
