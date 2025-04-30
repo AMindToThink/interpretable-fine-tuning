@@ -96,7 +96,9 @@ def prepare_model():
             Tensor: The modified SAE activations modified by the trainable parameters.
         """
 
-        return trainable_isaerftIA3()
+        return trainable_isaerftIA3(sae_acts)
+    result_model.sae.add_hook('hook_sae_acts_post', ia3_hook)
+    result_model
     # TODO: Add the SAE
     # TODO: Put the hook into the SAE
     # TODO: Register the hook's trainable component as a parameter of the model
