@@ -12,18 +12,12 @@ def compare_transformer_outputs():
     hooked_model = HookedSAETransformer.from_pretrained(model_name, device=device)
     hf_model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
     
-    # Convert models to double precision
-    hooked_model = hooked_model.double()
-    hf_model = hf_model.double()
-    
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     
     # Test input
     text = "Hello, world!"
     inputs = tokenizer(text, return_tensors="pt").to(device)
-    # Convert input to double precision
-    inputs.input_ids = inputs.input_ids.double()
     print(f"\nInput text: {text}")
     print(f"Input shape: {inputs.input_ids.shape}")
     
