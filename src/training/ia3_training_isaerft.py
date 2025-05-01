@@ -6,9 +6,9 @@
 %autoreload 2
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = ''  # Use no GPUs because there's someone working on a thesis right now. Of course, change this to '0' or '1' later for real training 
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'  # 
 import torch
-print(torch.cuda.device_count())  # Should print 0
+print(torch.cuda.device_count())  # Should print 1
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # Add src directory to path
@@ -20,7 +20,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import IA3Config, get_peft_model
 import randomname
 from sae_lens import SAE
-
+from functools import partial
 
 # %%
 from callbacks import *
@@ -48,7 +48,7 @@ dataset = dataset.map(preprocess_function)
 dataset = dataset.select_columns(['prompt', 'completion'])
 
 # %%
-model_name = "EleutherAI/pythia-70m-deduped"
+model_name = "google/gemma-2-2b"
 
 # %%
 print(dataset[0])
@@ -58,8 +58,8 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
 
 # %%
-test_release = "pythia-70m-deduped-res-sm"
-test_sae_id = "blocks.4.hook_resid_post"
+test_release = "gemma-scope-2b-pt-res-canonical"
+test_sae_id = 'layer_20/width_16k/canonical'
 test_sae, sae_dict, _ = SAE.from_pretrained(release=test_release, sae_id=test_sae_id)
 #%%
 # Print all parameters that require gradients
@@ -67,14 +67,13 @@ print("Parameters requiring gradients:")
 for name, param in model.named_parameters():
     if param.requires_grad:
         print(f"{name}: {param.shape}")
-
 # %%
 from copy import deepcopy
 from torch import Tensor
 from transformer_lens.hook_points import HookPoint
 #%%
 # Apply the configuration to your model
-def prepare_model():
+def prepare_model(model, test_sae):
     result_model = deepcopy(model)
     # Freeze all parameters in the base model
     for param in result_model.parameters():
@@ -83,6 +82,8 @@ def prepare_model():
         param.requires_grad = False
     # sae added to model, counts as a parameter
     result_model.sae = test_sae
+    assert hasattr(result_model.sae, 'use_error_term'), "Where's the error term?"
+    result_model.sae.use_error_term = True
     trainable_isaerftIA3 = IsaerftIA3(test_sae.cfg.d_sae, "sae_IA3_2025-04-29")
     test_sae.trainable_ia3 = trainable_isaerftIA3
     def ia3_hook(sae_acts:Tensor, hook:HookPoint) -> Tensor:
@@ -98,24 +99,33 @@ def prepare_model():
 
         return trainable_isaerftIA3(sae_acts)
     result_model.sae.add_hook('hook_sae_acts_post', ia3_hook)
-    result_model
+
+    def sae_hook_fn(sae, module, input, output):
+        # import pdb;pdb.set_trace()
+        # output is a tuple, we need to modify the first element
+        
+        sae_out = sae(output[0])
+        return (sae_out,) + output[1:]
+    result_model.get_submodule('model.layers.20').register_forward_hook(partial(sae_hook_fn, sae=result_model.sae))
     # TODO: Add the SAE
     # TODO: Put the hook into the SAE
     # TODO: Register the hook's trainable component as a parameter of the model
     # TODO: Check that the hook's trainable component is the only trainable parameter of the model.
+    # Check that trainable_ia3 is the only trainable parameter
+    trainable_params = [name for name, param in result_model.named_parameters() if param.requires_grad]
+    
+    if len(trainable_params) == 0:
+        raise ValueError("No trainable parameters found in model")
+    
+    if len(trainable_params) > 1:
+        raise ValueError(f"Found multiple trainable parameters: {trainable_params}. Expected only trainable_ia3")
+        
+    if not any("trainable_ia3" in param_name for param_name in trainable_params):
+        raise ValueError(f"trainable_ia3 not found in trainable parameters: {trainable_params}")
+    # import pdb;pdb.set_trace()
     return result_model
-
-# %%
-# Print all modules with IA3 adapters
-for name, module in peft_model.named_modules():
-    if "ia3_" in name:
-          print(name)
-
-# %%
-# Print all modules with IA3 adapters
-for name, module in peft_model.named_parameters():
-    if "ia3_" in name:
-          print(name)
+#%%
+peft_model = prepare_model(model, test_sae)
 
 # %%
 
@@ -125,7 +135,7 @@ tracking_callback = PEFTParameterTrackingCallback()
 histogram_callback = PEFTParameterHistogramCallback()
 
 # %%
-wandb.init(project="IA3_visualization")
+wandb.init(project="ISAERFT_visualization")
 
 
 # %%
@@ -174,8 +184,4 @@ trainer = SFTTrainer(
     callbacks=[tracking_callback, histogram_callback]
 )
 trainer.train()
-
-# %%
-dataset
-
 

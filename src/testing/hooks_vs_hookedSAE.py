@@ -1,15 +1,13 @@
 # Script which compares using pytorch hooks and using HookedSAETransformer to check that they are the same.
 
 import torch
-import argparse
-from torch import Tensor
 from transformers.models.auto.modeling_auto import AutoModelForCausalLM
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 from sae_lens import HookedSAETransformer, SAE
 from transformer_lens.hook_points import HookPoint
 
-def create_hooked_model(model_name="google/gemma-2-2b", device="cuda", hooked_sae_position="blocks.20.hook_resid_post"):
-    """Create a HookedSAETransformer model with a hook at specified position"""
+def create_hooked_model(model_name="google/gemma-2-2b", device="cuda"):
+    """Create a HookedSAETransformer model with a hook at layer 20"""
     model = HookedSAETransformer.from_pretrained(model_name, device=device)
     # import pdb;pdb.set_trace()
     # Create a simple hook that just adds 1 to the activations
@@ -23,13 +21,13 @@ def create_hooked_model(model_name="google/gemma-2-2b", device="cuda", hooked_sa
     def print_hook(tensor, hook):
         print(tensor)
         return tensor
-    # Add hook at specified position
-    model.add_hook(hooked_sae_position, hook_fn)
+    # Add hook at layer 20's MLP output
+    model.add_hook("blocks.20.hook_resid_post", hook_fn)
     return model
 
-def create_pytorch_model(model_name="google/gemma-2-2b", device="cuda", pytorch_position="model.layers.20"):
-    """Create a PyTorch model with a hook at specified position"""
-    model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+def create_pytorch_model(model_name="google/gemma-2-2b", device="cuda"):
+    """Create a PyTorch model with a hook at layer 20"""
+    model = AutoModelForCausalLM.from_pretrained(model_name, device_map=device)
     # import pdb;pdb.set_trace()
     # Create a hook that adds 1 to the activations
     def hook_fn(module, input, output):
@@ -42,18 +40,21 @@ def create_pytorch_model(model_name="google/gemma-2-2b", device="cuda", pytorch_
         print(output)
         return (output[0] + 1.0,) + output[1:]
     
-    # Register hook at specified position
+    # Register hook at layer 20's MLP output
     # model.get_submodule('model.layers.20.mlp').register_forward_hook(hook_fn)
-    hook_module = model.get_submodule(pytorch_position)
-    hook_module.register_forward_hook(hook_fn)
+    model.model.layers[20].register_forward_hook(hook_fn)
+    assert model.get_submodule('model.layers.20') == model.model.layers[20]
+
     return model
 
-def compare_models(model_name, device, hooked_sae_position, pytorch_position):
-    """Compare HookedSAE and PyTorch models with hooks at the specified positions"""
+def compare_models():
+    # device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = 'cpu'
+    model_name = "google/gemma-2-2b"
     
     # Create both models
-    hooked_model = create_hooked_model(model_name, device, hooked_sae_position)
-    pytorch_model = create_pytorch_model(model_name, device, pytorch_position)
+    hooked_model = create_hooked_model(model_name, device)
+    pytorch_model = create_pytorch_model(model_name, device)
     
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -88,12 +89,4 @@ def compare_models(model_name, device, hooked_sae_position, pytorch_position):
     return hooked_output, pytorch_output
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Compare HookedSAE and PyTorch models with hooks')
-    parser.add_argument('--model_name', type=str, default="google/gemma-2-2b", help='Name of the model to use')
-    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu', help='Device to run on (cuda/cpu)')
-    parser.add_argument('--hooked_sae_position', type=str, default="blocks.20.hook_resid_post", help='Hook position in HookedSAE format (e.g. "blocks.20.hook_resid_post")')
-    parser.add_argument('--pytorch_position', type=str, default="model.layers.20", help='Hook position in PyTorch format (e.g. "model.layers.20")')
-    
-    args = parser.parse_args()
-    compare_models(args.model_name, args.device, args.hooked_sae_position, args.pytorch_position)
-
+    compare_models()
