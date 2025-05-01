@@ -30,22 +30,26 @@ class PEFTParameterTrackingCallback(TrainerCallback):
             
         # Find trainable PEFT parameters
         for name, param in model.named_parameters():
-            if self._is_peft_param(name) and param.requires_grad:
-                param_data = param.data.detach().cpu().numpy().flatten()
-                
-                # Store initial parameter data for reference
-                self.tracked_params[name] = {
-                    'shape': param.shape,
-                    'size': param.numel(),
-                    'indices': list(range(len(param_data)))
-                }
-                
-                # Log initial parameter values
-                param_dict = {}
-                for i, value in enumerate(param_data):
-                    param_dict[f"param/{name}/{i}"] = float(value)
-                
-                wandb.log(param_dict, step=0)
+            if not param.requires_grad:
+                continue
+            if not self._is_peft_param(name):
+                raise ValueError('there are non-peft parameters training!')
+
+            param_data = param.data.detach().cpu().numpy().flatten()
+            
+            # Store initial parameter data for reference
+            self.tracked_params[name] = {
+                'shape': param.shape,
+                'size': param.numel(),
+                'indices': list(range(len(param_data)))
+            }
+            
+            # Log initial parameter values
+            param_dict = {}
+            for i, value in enumerate(param_data):
+                param_dict[f"param/{name}/{i}"] = float(value)
+            
+            wandb.log(param_dict, step=0)
     
     def on_log(self, args, state, control, model=None, logs=None, **kwargs):
         """Log individual parameter values at logging steps."""

@@ -100,7 +100,7 @@ def prepare_model(model, test_sae):
         return trainable_isaerftIA3(sae_acts)
     result_model.sae.add_hook('hook_sae_acts_post', ia3_hook)
 
-    def sae_hook_fn(sae, module, input, output):
+    def sae_hook_fn(module, input, output, sae):
         # import pdb;pdb.set_trace()
         # output is a tuple, we need to modify the first element
         
@@ -123,6 +123,7 @@ def prepare_model(model, test_sae):
     if not any("trainable_ia3" in param_name for param_name in trainable_params):
         raise ValueError(f"trainable_ia3 not found in trainable parameters: {trainable_params}")
     # import pdb;pdb.set_trace()
+    # result_model.train = lambda:None # TODO: If this line is there, evals will not work
     return result_model
 #%%
 peft_model = prepare_model(model, test_sae)
@@ -171,7 +172,7 @@ training_args = SFTConfig(
     max_length=512,
     output_dir=save_path + "/" + run_name,
     run_name=run_name,
-    per_device_train_batch_size=64,
+    per_device_train_batch_size=8,
     logging_steps=50,
     learning_rate=5e-3,
     max_steps=5000
