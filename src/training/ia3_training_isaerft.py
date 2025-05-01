@@ -2,13 +2,13 @@
 # Refer to https://colab.research.google.com/drive/1OLHNWBl6cA3h9KwoaFZx56YAwx_5S6B0?usp=sharing for a self-contained notebook for training Eleuther's Pythia 70m on https://huggingface.co/datasets/iamtarun/code_instructions_120k_alpaca using IA3 acting on a single position.
 
 # %%
-%reload_ext autoreload
-%autoreload 2
+# %reload_ext autoreload
+# %autoreload 2
 
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'  # 
 import torch
-print(torch.cuda.device_count())  # Should print 1
+print("number of cuda devices visible: ",  torch.cuda.device_count())  # Should print 1
 
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # Add src directory to path
@@ -21,13 +21,13 @@ from peft import IA3Config, get_peft_model
 import randomname
 from sae_lens import SAE
 from functools import partial
-
+import wandb
 # %%
 from callbacks import *
 from model_components import IsaerftIA3
 
 # %%
-save_path = '/results/IA3_Results/isaerft'
+save_path = 'results/IA3_Results/isaerft'
 
 #%%
 
