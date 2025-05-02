@@ -9,7 +9,7 @@ def compare_transformer_outputs():
     
     # Create both models
     print("Loading models...")
-    hooked_model = HookedSAETransformer.from_pretrained(model_name, device=device)
+    hooked_model = HookedSAETransformer.from_pretrained_no_processing(model_name, device=device) # from_pretrained has a small delta of .3. 
     hf_model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
     
     # Load tokenizer

@@ -17,10 +17,10 @@ class IsaerftIA3(torch.nn.Module):
         self.name = name
         assert num_features > 0 and int(num_features) == num_features, "SAEs have a positive integer number of features. Probably a number like 16k or 32k."
         self.num_features = num_features
-        self.scaling_factors = torch.nn.Parameter(torch.ones(num_features))
+        self.scaling_factors = torch.nn.Parameter(torch.zeros(num_features))
     
     def forward(self, x):
-        return self.scaling_factors * x
+        return (self.scaling_factors + 1.0) * x
 
 if __name__ == '__main__':
     # Test basic functionality
