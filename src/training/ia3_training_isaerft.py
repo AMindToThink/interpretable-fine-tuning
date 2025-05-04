@@ -37,9 +37,6 @@ save_path = 'results/IA3_Results/isaerft'
 model_name = "google/gemma-2-2b"
 
 # %%
-print(dataset[0])
-
-# %%
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
 
@@ -212,7 +209,7 @@ def doORPO():
         args=training_args,
         train_dataset=dataset["train"],  # type: ignore
         eval_dataset=dataset["test"],  # type: ignore
-        # processing_class=tokenizer,
+        processing_class=tokenizer,
         callbacks=[tracking_callback, histogram_callback]
     )
 
@@ -222,3 +219,4 @@ def doORPO():
     # Save the model
     trainer.save_model(training_args.output_dir)
 #%%
+doORPO()
