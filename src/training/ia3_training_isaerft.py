@@ -45,11 +45,12 @@ test_release = "gemma-scope-2b-pt-res-canonical"
 test_sae_id = 'layer_20/width_16k/canonical'
 test_sae, sae_dict, _ = SAE.from_pretrained(release=test_release, sae_id=test_sae_id)
 #%%
-# Print all parameters that require gradients
-print("Parameters requiring gradients:")
-for name, param in model.named_parameters():
-    if param.requires_grad:
-        print(f"{name}: {param.shape}")
+def print_params_with_grad():
+    # Print all parameters that require gradients
+    print("Parameters requiring gradients:")
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f"{name}: {param.shape}")
 # %%
 from copy import deepcopy
 from torch import Tensor
@@ -135,11 +136,7 @@ run_name = randomname.get_name() + "_" + timestamp
 
 
 # %%
-lets_overfit:bool = False
-if lets_overfit:
-  batch_size=64
-  small_dataset = dataset.select(range(batch_size))
-train_dataset = small_dataset if lets_overfit else dataset
+
 
 # %%
 # prompt: print the shapes and names of all peft_model parameters which require gradients
@@ -166,6 +163,11 @@ def doSFT():
 
     # %%
     dataset = dataset.select_columns(['prompt', 'completion'])
+    lets_overfit:bool = False
+    if lets_overfit:
+        batch_size=64
+        small_dataset = dataset.select(range(batch_size))
+    train_dataset = small_dataset if lets_overfit else dataset
     training_args = SFTConfig(
         max_length=512,
         output_dir=save_path + "/" + run_name,
