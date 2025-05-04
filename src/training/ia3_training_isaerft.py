@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 
 
 # %%
 from datasets import load_dataset
-from trl import SFTConfig, SFTTrainer
+from trl import SFTConfig, SFTTrainer, ORPOConfig, ORPOTrainer, ModelConfig
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import IA3Config, get_peft_model
 import randomname
@@ -31,21 +31,7 @@ save_path = 'results/IA3_Results/isaerft'
 
 #%%
 
-dataset = load_dataset("iamtarun/code_instructions_120k_alpaca", split="train")
 
-
-# %%
-def preprocess_function(example):
-  example['prompt'] = example['instruction'] + "\ninput:\n" + example['input']
-  example['completion'] = example['output']
-  return example
-
-# %%
-# make the dataset a prompt-completion dataset https://huggingface.co/docs/trl/en/dataset_formats
-dataset = dataset.map(preprocess_function)
-
-# %%
-dataset = dataset.select_columns(['prompt', 'completion'])
 
 # %%
 model_name = "google/gemma-2-2b"
@@ -167,22 +153,72 @@ for name, param in peft_model.named_parameters():
 
 
 # %%
+def doSFT():
+    dataset = load_dataset("iamtarun/code_instructions_120k_alpaca", split="train")
 
-training_args = SFTConfig(
-    max_length=512,
-    output_dir=save_path + "/" + run_name,
-    run_name=run_name,
-    per_device_train_batch_size=8,
-    logging_steps=50,
-    learning_rate=5e-3,
-    max_steps=5000
 
-)
-trainer = SFTTrainer(
-    peft_model,
-    train_dataset=train_dataset,
-    args=training_args,
-    callbacks=[tracking_callback, histogram_callback]
-)
-trainer.train()
+    # %%
+    def preprocess_function(example):
+        example['prompt'] = example['instruction'] + "\ninput:\n" + example['input']
+        example['completion'] = example['output']
+        return example
 
+    # %%
+    # make the dataset a prompt-completion dataset https://huggingface.co/docs/trl/en/dataset_formats
+    dataset = dataset.map(preprocess_function)
+
+    # %%
+    dataset = dataset.select_columns(['prompt', 'completion'])
+    training_args = SFTConfig(
+        max_length=512,
+        output_dir=save_path + "/" + run_name,
+        run_name=run_name,
+        per_device_train_batch_size=8,
+        logging_steps=50,
+        learning_rate=5e-3,
+        max_steps=5000
+
+    )
+    trainer = SFTTrainer(
+        peft_model,
+        train_dataset=train_dataset,
+        args=training_args,
+        callbacks=[tracking_callback, histogram_callback]
+    )
+    trainer.train()
+
+def doORPO():
+    dataset = load_dataset("trl-internal-testing/hh-rlhf-helpful-base-trl-style")
+    
+    # Configure ORPO training
+    training_args = ORPOConfig(
+        max_length=512,
+        output_dir=save_path + "/" + run_name + "_orpo",
+        run_name=run_name + "_orpo",
+        per_device_train_batch_size=8,
+        logging_steps=50,
+        learning_rate=5e-3,  # Higher learning rate for PEFT as per the example
+        max_steps=5000,
+        gradient_accumulation_steps=1,
+        warmup_steps=150,
+        bf16=True,  # Use bfloat16 for training
+        logging_first_step=True,
+        report_to="wandb"
+    )
+
+    # Initialize ORPO trainer
+    trainer = ORPOTrainer(
+        model=peft_model,
+        args=training_args,
+        train_dataset=dataset["train"],  # type: ignore
+        eval_dataset=dataset["test"],  # type: ignore
+        # processing_class=tokenizer,
+        callbacks=[tracking_callback, histogram_callback]
+    )
+
+    # Train the model
+    trainer.train()
+
+    # Save the model
+    trainer.save_model(training_args.output_dir)
+#%%
