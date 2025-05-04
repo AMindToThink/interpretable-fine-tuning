@@ -16,6 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 
 # %%
 from datasets import load_dataset
 from trl import SFTConfig, SFTTrainer, ORPOConfig, ORPOTrainer, ModelConfig
+from trl.trainer.utils import SIMPLE_CHAT_TEMPLATE
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import IA3Config, get_peft_model
 import randomname
@@ -188,23 +189,26 @@ def doSFT():
 
 def doORPO():
     dataset = load_dataset("trl-internal-testing/hh-rlhf-helpful-base-trl-style")
-    
-    # Configure ORPO training
+
+    if tokenizer.chat_template is None:
+        tokenizer.chat_template = SIMPLE_CHAT_TEMPLATE
+
+    # Configure ORPO training with memory-efficient settings
     training_args = ORPOConfig(
         max_length=512,
         output_dir=save_path + "/" + run_name + "_orpo",
         run_name=run_name + "_orpo",
-        per_device_train_batch_size=8,
-        logging_steps=50,
+        per_device_train_batch_size=4,  # Reduced from 8 to 4
+        logging_steps=5,
         learning_rate=5e-3,  # Higher learning rate for PEFT as per the example
         max_steps=5000,
-        gradient_accumulation_steps=1,
+        gradient_accumulation_steps=2,  # Increased from 1 to 2 to maintain effective batch size
         warmup_steps=150,
         bf16=True,  # Use bfloat16 for training
         logging_first_step=True,
         report_to="wandb"
     )
-
+    # import pdb;pdb.set_trace()
     # Initialize ORPO trainer
     trainer = ORPOTrainer(
         model=peft_model,
