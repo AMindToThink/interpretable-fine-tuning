@@ -15,9 +15,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 
 
 # %%
 from datasets import load_dataset
-from trl import SFTConfig, SFTTrainer, ORPOConfig, ORPOTrainer, ModelConfig
+from trl import SFTConfig, SFTTrainer, DPOConfig, DPOTrainer, ModelConfig
 from trl.trainer.utils import SIMPLE_CHAT_TEMPLATE
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers.integrations import CodeCarbonCallback
 from peft import IA3Config, get_peft_model
 import randomname
 from sae_lens import SAE
@@ -26,6 +27,9 @@ import wandb
 # %%
 from callbacks import *
 from model_components import IsaerftIA3
+from copy import deepcopy
+from torch import Tensor
+from transformer_lens.hook_points import HookPoint
 
 # %%
 save_path = 'results/IA3_Results/isaerft'
@@ -40,7 +44,6 @@ model_name = "google/gemma-2-2b"
 # %%
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
-
 # %%
 test_release = "gemma-scope-2b-pt-res-canonical"
 test_sae_id = 'layer_20/width_16k/canonical'
@@ -53,9 +56,6 @@ def print_params_with_grad():
         if param.requires_grad:
             print(f"{name}: {param.shape}")
 # %%
-from copy import deepcopy
-from torch import Tensor
-from transformer_lens.hook_points import HookPoint
 #%%
 # Apply the configuration to your model
 def prepare_model(model, test_sae):
@@ -183,40 +183,48 @@ def doSFT():
         peft_model,
         train_dataset=train_dataset,
         args=training_args,
-        callbacks=[tracking_callback, histogram_callback]
+        callbacks=[tracking_callback, histogram_callback, CodeCarbonCallback()]
     )
     trainer.train()
 
-def doORPO():
+def doDPO():
+    # Initialize wandb project
+    wandb.init(
+        project="isaerft-dpo",
+    )
+
+    # Load a preference dataset for DPO training
     dataset = load_dataset("trl-internal-testing/hh-rlhf-helpful-base-trl-style")
 
     if tokenizer.chat_template is None:
         tokenizer.chat_template = SIMPLE_CHAT_TEMPLATE
 
-    # Configure ORPO training with memory-efficient settings
-    training_args = ORPOConfig(
+    # Configure DPO training
+    training_args = DPOConfig(
         max_length=512,
-        output_dir=save_path + "/" + run_name + "_orpo",
-        run_name=run_name + "_orpo",
-        per_device_train_batch_size=4,  # Reduced from 8 to 4
+        output_dir=save_path + "/" + run_name + "_dpo",
+        run_name=run_name + "_dpo", 
+        per_device_train_batch_size=4,
         logging_steps=5,
-        learning_rate=5e-3,  # Higher learning rate for PEFT as per the example
+        learning_rate=5e-3,
         max_steps=5000,
-        gradient_accumulation_steps=2,  # Increased from 1 to 2 to maintain effective batch size
-        warmup_steps=150,
-        bf16=True,  # Use bfloat16 for training
+        gradient_accumulation_steps=2,
+        # warmup_steps=150, # Had warmup the first time but it seemed to just slow things for no reason https://wandb.ai/matthewkhoriaty-northwestern-university/huggingface/runs/171ebdie?nw=nwusermatthewkhoriaty
+        bf16=True,
         logging_first_step=True,
-        report_to="wandb"
+        report_to="wandb",
+        beta=0.1,  # DPO-specific parameter controlling deviation from reference model
+        loss_type="sigmoid"  # Default DPO loss type
     )
-    # import pdb;pdb.set_trace()
-    # Initialize ORPO trainer
-    trainer = ORPOTrainer(
+
+    # Initialize DPO trainer
+    trainer = DPOTrainer(
         model=peft_model,
         args=training_args,
-        train_dataset=dataset["train"],  # type: ignore
-        eval_dataset=dataset["test"],  # type: ignore
+        train_dataset=dataset["train"],
+        eval_dataset=dataset["test"],
         processing_class=tokenizer,
-        callbacks=[tracking_callback, histogram_callback]
+        callbacks=[tracking_callback, histogram_callback, CodeCarbonCallback()]
     )
 
     # Train the model
@@ -224,5 +232,8 @@ def doORPO():
 
     # Save the model
     trainer.save_model(training_args.output_dir)
+
+    # Close wandb run
+    wandb.finish()
 #%%
-doORPO()
+doDPO()
