@@ -42,21 +42,7 @@ def resid_hook(sae_acts, hook, residual_block):
     """
     return residual_block(sae_acts)
 #%%
-class IsaerftLayer(BaseTunerLayer):
-    """Wrapper for ResidualBlock that implements the BaseTunerLayer interface"""
-    def __init__(self, block, adapter_name: str):
-        super().__init__()
-        self.block = block
-        self._active_adapter = adapter_name  # BaseTunerLayer already has this
-        self._disable_adapters = False  # BaseTunerLayer already has this
-        
-        # Only need to define the adapter layer names for status tracking
-        self.adapter_layer_names = ("block",)
 
-    def forward(self, x):
-        if self.disable_adapters:
-            return x
-        return self.block(x)
 
 class IsaerftModel(BaseTuner):
     """Implementation of the ISAERFT model"""
@@ -334,6 +320,10 @@ class IsaerftModel(BaseTuner):
     def _mark_only_adapters_as_trainable(self, *args, **kwargs):
         pass
 
+    def inject_adapter(self, model, adapter_name, low_cpu_mem_usage=False):
+        # No-op: we manage our own adapters and hooks
+        return
+
 class IsaerftPeft(PeftModel):
     def __init__(self, model, config: IsaerftConfig, adapter_name="default"):
         # Validate config
@@ -495,3 +485,45 @@ if __name__ == "__main__":
         if param.requires_grad:
             print(param.shape)
     # %%
+
+    # Test adapter enabling/disabling
+    print("\nTesting adapter enabling/disabling...")
+    
+    # Randomize trainable parameters to ensure we can detect adapter effects
+    print("Randomizing trainable parameters...")
+    with torch.no_grad():
+        for param in peft_model.parameters():
+            if param.requires_grad:
+                param.data = torch.randn_like(param) * 0.1  # Small scale to avoid extreme values
+    
+    # Get initial output with adapters enabled
+    output_enabled = peft_model(input_ids)
+    initial_logits = output_enabled.logits.detach().clone()
+    
+    # Disable adapters
+    print("Disabling adapters...")
+    peft_model.disable_adapter_layers()
+    
+    # Get output with adapters disabled
+    output_disabled = peft_model(input_ids)
+    disabled_logits = output_disabled.logits.detach().clone()
+    
+    # Check that outputs are different
+    logits_diff = torch.norm(initial_logits - disabled_logits).item()
+    print(f"Logits difference after disabling: {logits_diff:.4f}")
+    assert logits_diff > 0, "Disabling adapters should change the output"
+    
+    # Re-enable adapters
+    print("Re-enabling adapters...")
+    peft_model.enable_adapter_layers()
+    
+    # Get output with adapters re-enabled
+    output_reenabled = peft_model(input_ids)
+    reenabled_logits = output_reenabled.logits.detach().clone()
+    
+    # Check that outputs match initial state
+    logits_diff = torch.norm(initial_logits - reenabled_logits).item()
+    print(f"Logits difference after re-enabling: {logits_diff:.4f}")
+    assert logits_diff < 1e-6, "Re-enabling adapters should restore original output"
+    
+    print("Adapter enabling/disabling test completed successfully!")

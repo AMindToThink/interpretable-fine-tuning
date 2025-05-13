@@ -38,7 +38,9 @@ class IsaerftConfig(PeftConfig):
     depth: int = field(default=-1, metadata={"help": "How many layers for the FFNNs to have. -1 only trains a bias, 0 only trains a linear layer. defaults to -1."})
     hidden_size: Optional[int] = field(default=None, metadata={'help':'The hidden size of the FFNN. depth must be > 0 for this to be provided.'})
     lora_r: Optional[int] = field(default=None, metadata={'help':'The rank of the matrices for the FFNN. Depth must be greater than -1.'}) # Todo: find an actually good lora_r value here
-    
+    target_modules: list = field(default_factory=list, init=False)
+    layers_to_transform: Optional[list] = field(default_factory=lambda:None, init=False)
+    layers_pattern:Optional[list]= field(default_factory=lambda:None, init=False)
     def __post_init__(self):
         super().__post_init__()
         self.peft_type = PeftType.ISAERFT;
