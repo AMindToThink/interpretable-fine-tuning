@@ -45,3 +45,57 @@ class IsaerftIA3Model(nn.Module):
         output = self.model(input_tensor, *args, **kwargs, return_type='both')
         
         return output
+
+if __name__ == '__main__':
+    import torch
+    from sae_lens import HookedSAETransformer, SAE
+    
+    # Set device
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    # Load model
+    print("Loading HookedSAETransformer...")
+    model = HookedSAETransformer.from_pretrained("google/gemma-2-2b", device=device).to(device)
+    print(f"Model loaded: {model.cfg.model_name}")
+
+    # Load SAE
+    print("Loading SAE...")
+    sae_release = "gemma-scope-2b-pt-res-canonical"
+    model_sae_id = 'layer_20/width_16k/canonical'
+    test_sae, sae_dict, _ = SAE.from_pretrained(release=sae_release, sae_id=model_sae_id)
+    test_sae = test_sae.to(device)
+    # print(f"SAE loaded: {test_sae.name}")
+
+    # Create IsaerftIA3Model
+    print("Creating IsaerftIA3Model...")
+    peft_model = IsaerftIA3Model(model, test_sae)
+    print("IsaerftIA3Model created")
+
+    # Test with a simple input
+    print("\nTesting forward pass...")
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b")
+    text = "Hello!"
+    input_ids = tokenizer(text, return_tensors="pt").input_ids.to(device)
+    print(f"Input shape: {input_ids.shape}")
+
+    # Forward pass
+    output = peft_model(input_ids)
+    print(f"Output shape: {output.logits.shape}")
+    print(f"Output sum: {output.logits.sum().item()}")
+    
+    from pprint import pprint
+    pprint([(n, type(m)) for n, m in peft_model.named_modules()])
+    from peft import IA3Config, get_peft_model
+    config = IA3Config(
+        task_type="CAUSAL_LM",
+        # Use a list of exact module names to target
+        target_modules=["blocks.20.hook_resid_post.hook_sae_acts_post"],
+        # Similarly exact name for feedforward module
+        feedforward_modules=[],
+        init_ia3_weights=True
+    )
+    ia3_model = get_peft_model(peft_model, config)
+    ia3_model.print_trainable_parameters()
+
