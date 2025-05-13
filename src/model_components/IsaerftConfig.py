@@ -1,3 +1,4 @@
+# TODO: Make IsaerftConfig a superclass and make the residual and the ia3 versions into subclasses. Do similar to IsaerftPeft.
 # Import PeftConfig
 from peft.config import PeftConfig
 from peft.utils import PeftType
