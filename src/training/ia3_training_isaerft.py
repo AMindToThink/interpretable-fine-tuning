@@ -17,12 +17,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 
 from datasets import load_dataset
 from trl import SFTConfig, SFTTrainer, DPOConfig, DPOTrainer, ModelConfig
 from trl.trainer.utils import SIMPLE_CHAT_TEMPLATE
-from transformers.models.auto.tokenization_auto import AutoTokenizer
-from sae_lens import HookedSAETransformer, SAE
-from transformers.integrations.integration_utils import CodeCarbonCallback
-from peft.config import IA3Config
-from peft.mapping import get_peft_model
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers.integrations import CodeCarbonCallback
+from peft import IA3Config, get_peft_model
 import randomname
+from sae_lens import SAE
 from functools import partial
 import wandb
 # %%
@@ -31,7 +30,6 @@ from model_components import IsaerftIA3
 from copy import deepcopy
 from torch import Tensor
 from transformer_lens.hook_points import HookPoint
-from model_components.HookedTransformerModule import IsaerftIA3Model
 
 # %%
 save_path = 'results/IA3_Results/isaerft'
@@ -45,7 +43,7 @@ model_name = "google/gemma-2-2b"
 
 # %%
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = HookedSAETransformer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
 # %%
 sae_release = "gemma-scope-2b-pt-res-canonical"
 model_sae_id = 'layer_20/width_16k/canonical'
@@ -109,7 +107,7 @@ def prepare_model(model, test_sae):
     # result_model.train = lambda:None # TODO: If this line is there, evals will not work
     return result_model
 #%%
-peft_model = IsaerftIA3Model(model, test_sae)
+peft_model = prepare_model(model, test_sae)
 
 # %%
 
