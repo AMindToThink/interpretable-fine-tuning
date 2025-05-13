@@ -16,6 +16,7 @@ try:
     # When imported as a module
     from .ResidualBlock import ResidualBlock
     from .IsaerftConfig import IsaerftConfig
+    from .IsaerftIA3 import IsaerftIA3
 except ImportError:
     # When run directly as a script
     import sys
@@ -23,6 +24,7 @@ except ImportError:
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from model_components.ResidualBlock import ResidualBlock
     from IsaerftConfig import IsaerftConfig
+    from IsaerftIA3 import IsaerftIA3
 
 # 1. Add your PEFT type to the PeftType enum
 if not hasattr(PeftType, "ISAERFT"):
@@ -103,6 +105,7 @@ class IsaerftModel(BaseTuner):
             current_key (`str`):
                 The key of the current target being adapted.
         """
+        return
     def resize_token_embeddings(self, num_new_tokens, *args, **kwargs):
         print(f"{num_new_tokens=}")
         assert num_new_tokens == self.config.vocab_size
@@ -239,19 +242,25 @@ class IsaerftModel(BaseTuner):
         # Process each target hook pattern (release, id) pair
         all_matching_saes = self._target_hooks_to_saes(target_hooks=config.target_hooks)
         
-        # Now create a ResidualBlock for each unique matching SAE
+        # Now create a block for each unique matching SAE
         for sae in all_matching_saes:
             # Get the feature dimension from the SAE
             feature_dim = sae.cfg.d_sae
             sanitized_name = self._sanitize_name(sae.name)
             
-            # Create a ResidualBlock based on the config
-            block = ResidualBlock(
-                input_dim=feature_dim,
-                hidden_layers=config.depth,
-                hidden_dim=config.hidden_size,
-                name=f"residual_block_{sanitized_name}"
-            ).to(self.device)
+            # Create either an IA3 block or ResidualBlock based on the config
+            if config.ia3:
+                block = IsaerftIA3(
+                    num_features=feature_dim,
+                    name=f"ia3_block_{sanitized_name}"
+                ).to(self.device)
+            else:
+                block = ResidualBlock(
+                    input_dim=feature_dim,
+                    hidden_layers=config.depth,
+                    hidden_dim=config.hidden_size,
+                    name=f"residual_block_{sanitized_name}"
+                ).to(self.device)
             block.requires_grad_(True)
             self.trainable_blocks[sanitized_name] = block
         self.add_hooks()

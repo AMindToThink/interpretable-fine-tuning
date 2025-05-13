@@ -1,11 +1,17 @@
 import torch
+from typing import Callable
+
+def grad_1_abs(x):
+    """A version of absolute value which has a gradient of 1 when x_i = 0 instead of 0. Necessary so that we can initialize our parameters to 0 without losing all our gradients."""
+    return torch.where(x < 0, -x, x)
 
 class IsaerftIA3(torch.nn.Module):
-    def __init__(self, num_features:int, name:str=""):
+    def __init__(self, num_features:int, name:str="", scale_processor:Callable[[torch.Tensor], torch.Tensor]=lambda x:x):
         """Scales the features given to it by multiplying elementwise by a learned vector, scaling_factors. Naturally, scaling_factors is initialized to 1s so that this component acts as the identity during the start of training.
         
         Args:
             num_features (int): Dimension of the SAE, which is the dimension of the input features. Must be positive integer. Output will have same dimension.
+            scale_processor: Function which processes the scales and returns new scales. Useful for ensuring that only some values are possible (for example, only positive or only negative). For example, making it torch.abs would break because its derivative is 0 at x=0. 
         
         Example:
             >>> layer = IsaerftIA3(num_features=512)  # Create layer with 512 features
@@ -20,7 +26,7 @@ class IsaerftIA3(torch.nn.Module):
         self.scaling_factors = torch.nn.Parameter(torch.zeros(num_features))
     
     def forward(self, x):
-        return (self.scaling_factors + 1.0) * x
+        return (self.scale_processor(self.scaling_factors) + 1.0) * x
 
 if __name__ == '__main__':
     # Test basic functionality

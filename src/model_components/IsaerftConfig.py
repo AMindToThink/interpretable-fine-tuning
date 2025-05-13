@@ -35,22 +35,25 @@ class IsaerftConfig(PeftConfig):
     is_prompt_learning:bool=field(default=False, init=False, metadata={"help": "Whether this is a prompt learning method. ISaeRFT is not."})
     
     target_hooks: List[tuple[str, str]] = field(default_factory=list, metadata={'help':"List of (release, id) tuples to match SAEs, e.g. [('gemma-scope-2b-pt-res-canonical', 'layer_25/width_16k/canonical')] or [('res', '')] for all residual for that model"})
-    depth: int = field(default=-1, metadata={"help": "How many layers for the FFNNs to have. -1 only trains a bias, 0 only trains a linear layer. defaults to -1."})
+    ia3: bool = field(default=False, metadata={"help": "Whether to use IA3 style adaptation. If True, depth must be None."})
+    depth: Optional[int] = field(default=-1, metadata={"help": "How many layers for the FFNNs to have. -1 only trains a bias, 0 only trains a linear layer. defaults to -1."})
     hidden_size: Optional[int] = field(default=None, metadata={'help':'The hidden size of the FFNN. depth must be > 0 for this to be provided.'})
     lora_r: Optional[int] = field(default=None, metadata={'help':'The rank of the matrices for the FFNN. Depth must be greater than -1.'}) # Todo: find an actually good lora_r value here
-    target_modules: list = field(default_factory=list, init=False)
-    layers_to_transform: Optional[list] = field(default_factory=lambda:None, init=False)
-    layers_pattern:Optional[list]= field(default_factory=lambda:None, init=False)
     def __post_init__(self):
         super().__post_init__()
         self.peft_type = PeftType.ISAERFT;
-        if self.depth < 1 and (self.hidden_size is not None):
-            raise ValueError("`hidden_size` must be None if there are no hidden parameters! (ie, when `depth` is less than 1)")
+        
+        if self.ia3 and self.depth is not None:
+            raise ValueError("`depth` must be None when `ia3` is True")
+            
+        if self.depth is not None:
+            if self.depth < 1 and (self.hidden_size is not None):
+                raise ValueError("`hidden_size` must be None if there are no hidden parameters! (ie, when `depth` is less than 1)")
 
-        if self.depth < 0 and (self.lora_r is not None):  
-            raise ValueError("`lora_r` must be None if there are no matrices! (ie, when `depth` is less than 0)")
+            if self.depth < 0 and (self.lora_r is not None):  
+                raise ValueError("`lora_r` must be None if there are no matrices! (ie, when `depth` is less than 0)")
+                
         if len(self.target_hooks) == 0:
-
             raise ValueError("`target_hooks` must have a value")
 
         if not (all(len(pair) == 2 for pair in self.target_hooks)):

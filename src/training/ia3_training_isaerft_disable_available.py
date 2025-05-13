@@ -21,7 +21,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from transformers.integrations import CodeCarbonCallback
 from peft import IA3Config, get_peft_model
 import randomname
-from sae_lens import SAE
+from sae_lens import SAE, HookedSAETransformer
 from functools import partial
 import wandb
 # %%
@@ -39,10 +39,15 @@ save_path = 'results/IA3_Results/isaerft'
 
 # %%
 model_name = "google/gemma-2-2b"
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
 # %%
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name)
+# Load model using HookedSAETransformer instead of AutoModelForCausalLM
+model = HookedSAETransformer.from_pretrained(model_name, device=device).to(device)
+print(f"Model loaded: {model.cfg.model_name}")
+
 # %%
 sae_release = "gemma-scope-2b-pt-res-canonical"
 model_sae_id = 'layer_20/width_16k/canonical'
@@ -53,7 +58,8 @@ config = IsaerftConfig(
     target_hooks=[
         (sae_release, model_sae_id),  # Match the SAE we loaded
     ],
-    depth=-1  # Bias-only for simplicity
+    depth=None,  
+    ia3=True
 )
 
 # Create IsaerftPeft model
