@@ -72,8 +72,8 @@ for name, param in peft_model.named_parameters():
         print(f"Name: {name}, Shape: {param.shape}")
 
 # %%
-tracking_callback = PEFTParameterTrackingCallback()
-histogram_callback = PEFTParameterHistogramCallback()
+tracking_callback = PEFTParameterTrackingCallback(peft_param_prefix=['trainable_blocks'])
+histogram_callback = PEFTParameterHistogramCallback(peft_param_prefix=['trainable_blocks'])
 
 # %%
 wandb.init(project="ISAERFT_visualization")

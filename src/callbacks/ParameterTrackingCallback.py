@@ -33,7 +33,7 @@ class PEFTParameterTrackingCallback(TrainerCallback):
             if not param.requires_grad:
                 continue
             if not self._is_peft_param(name):
-                raise ValueError('there are non-peft parameters training!')
+                raise ValueError(f'there are non-peft parameters training! {name}')
 
             param_data = param.data.detach().cpu().numpy().flatten()
             

@@ -60,6 +60,9 @@ class IsaerftModel(BaseTuner):
         # Store SAEs that have been added to the model
         self.saes = {}
         
+        # Initialize adapter state
+        self._adapter_layers_enabled = True
+        
         # Create trainable blocks for each target hook
         self.setup_trainable_blocks()
 
@@ -309,19 +312,27 @@ class IsaerftModel(BaseTuner):
         """Get the trainable parameters of the model"""
         return self.trainable_blocks.parameters()
 
-    def disable_adapter_layers(self):
-        """Disable all adapter layers"""
-        self.remove_hooks()  # Remove hooks since that's how our adapters work
-        for module in self.model.modules():
-            if isinstance(module, BaseTunerLayer):
-                module.enable_adapters(enabled=False)
+    def _set_adapter_layers(self, enabled=True):
+        """Set the adapter layers to enabled or disabled state"""
+        self._adapter_layers_enabled = enabled
+        if enabled:
+            self.add_hooks()
+        else:
+            self.remove_hooks()
 
     def enable_adapter_layers(self):
         """Enable all adapter layers"""
-        self.add_hooks()  # Re-add hooks since that's how our adapters work
+        self._set_adapter_layers(True)
         for module in self.model.modules():
             if isinstance(module, BaseTunerLayer):
                 module.enable_adapters(enabled=True)
+
+    def disable_adapter_layers(self):
+        """Disable all adapter layers"""
+        self._set_adapter_layers(False)
+        for module in self.model.modules():
+            if isinstance(module, BaseTunerLayer):
+                module.enable_adapters(enabled=False)
 
     def _check_target_module_exists(self, *args, **kwargs):
         pass
