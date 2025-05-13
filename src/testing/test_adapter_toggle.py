@@ -1,8 +1,8 @@
 import torch
 from transformers import AutoTokenizer
 from sae_lens import HookedSAETransformer
-from ..model_components.IsaerftConfig import IsaerftConfig
-from ..model_components.IsaerftPeft import IsaerftPeft
+from src.model_components.IsaerftConfig import IsaerftConfig
+from src.model_components.IsaerftPeft import IsaerftPeft
 
 def test_adapter_toggle():
     # Set device

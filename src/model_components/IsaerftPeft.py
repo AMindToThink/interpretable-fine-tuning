@@ -3,7 +3,8 @@
 import torch
 from torch import nn
 from transformers import AutoConfig
-from peft import PeftModel 
+from peft.peft_model import PeftModel
+from peft.config import PeftConfig
 from peft.tuners.tuners_utils import BaseTuner, BaseTunerLayer
 from sae_lens import HookedSAETransformer, SAE
 from peft.utils import PeftType
@@ -326,6 +327,12 @@ class IsaerftModel(BaseTuner):
         for module in self.model.modules():
             if isinstance(module, BaseTunerLayer):
                 module.enable_adapters(enabled=True)
+
+    def _check_target_module_exists(self, *args, **kwargs):
+        pass
+
+    def _mark_only_adapters_as_trainable(self, *args, **kwargs):
+        pass
 
 class IsaerftPeft(PeftModel):
     def __init__(self, model, config: IsaerftConfig, adapter_name="default"):

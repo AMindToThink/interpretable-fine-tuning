@@ -19,7 +19,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
 )
-from trl import ORPOConfig, ORPOTrainer, setup_chat_format
+from trl import DPOConfig, DPOTrainer, setup_chat_format
 from sae_lens import HookedSAETransformer, SAE
 from trl.trainer.utils import SIMPLE_CHAT_TEMPLATE
 #%%
@@ -128,8 +128,8 @@ finetune_name = f"{simpler_model_name.upper()}-FT-ORPO-ISAERFT_"+run_name
 finetune_tags = ["smol-course", "module_1", "isaerft"]
 
 #%%
-# Train model with ORPO
-orpo_args = ORPOConfig(
+# Train model with DPO
+dpo_args = DPOConfig(
     # Small learning rate to prevent catastrophic forgetting
     learning_rate=2e-6,
     # Linear learning rate decay over training
@@ -158,7 +158,7 @@ orpo_args = ORPOConfig(
     # Disable external logging
     report_to="wandb",
     # Where to save model/checkpoints
-    output_dir="./results/orpo_isaerft/"+run_name,
+    output_dir="./results/dpo_isaerft/"+run_name,
     # Enable MPS (Metal Performance Shaders) if available
     use_mps_device=device == "mps",
     hub_model_id=finetune_name,
@@ -169,8 +169,10 @@ orpo_args = ORPOConfig(
     dataloader_pin_memory=True,
     dataloader_drop_last=True,
     dataloader_num_workers=4,
+    # DPO-specific parameters
+    loss_type="sigmoid",  # Using the standard DPO loss
+    disable_dropout=True,  # Disable dropout for stability
 )
-
 
 #%%
 # Initialize wandb
@@ -187,15 +189,12 @@ wandb.init(
 )
 #%%
 # Create the trainer
-trainer = ORPOTrainer(
+trainer = DPOTrainer(
     model=model,
-    args=orpo_args,
+    args=dpo_args,
     train_dataset=dataset["train"].select(range(10000)),
     eval_dataset=dataset["test"].select(range(100)),
     processing_class=tokenizer,
-    # peft_config=isaerft_config, # don't include this; it is one or the other: model is a HookedSAETransformer and peft_config is used to transform it, or model is an IsaerftPeft and no peft_config needed
-    # label_names=["labels"],  # This is the standard label name for causal language models
-    # dataset_num_proc=1,
 )
 
 #%%
