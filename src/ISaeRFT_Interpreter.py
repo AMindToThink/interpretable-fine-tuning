@@ -81,13 +81,12 @@ class ISaeRFT_Interpreter():
             feature_results = []
             assert self.sae.cfg.neuronpedia_id is not None, "The SAE doesn't have a neuronpedia ID. "
             for rank, index in enumerate(indices_to_check):
-                client_json = self.neuronpedia_client.get_feature(neuronpedia_id=self.sae.cfg.neuronpedia_id, index=sorted_indices[rank].item())
+                client_json = self.neuronpedia_client.get_feature(neuronpedia_id=self.sae.cfg.neuronpedia_id, index=index.item())
                 description = [description_at_index['description'] for description_at_index in client_json['explanations']]
-                # import pdb;pdb.set_trace()
                 feature_results.append({'interpretation_type':interpretation_type, 'rank':rank, 'index':index.item(), 'value':vector[index].item(), 'importance':importance[index].item(), 'explanation': description})
             return feature_results
         top_indices_to_check = sorted_indices[:top_k]
-        bottom_indices_to_check = sorted_indices[-bottom_k:]
+        bottom_indices_to_check = torch.flip(sorted_indices[-bottom_k:], dims=[0])
         
         result = dict(top_results=check_indices(top_indices_to_check), bottom_results=check_indices(bottom_indices_to_check))
         

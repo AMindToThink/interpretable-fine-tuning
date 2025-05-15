@@ -31,6 +31,7 @@ from model_components.IsaerftConfig import IsaerftConfig
 from copy import deepcopy
 from torch import Tensor
 from transformer_lens.hook_points import HookPoint
+from dataclasses import asdict
 
 import NeuronpediaClient
 #%%
@@ -57,7 +58,7 @@ model_sae_id = 'layer_20/width_16k/canonical'
 
 # %%
 # Create IsaerftConfig
-config = IsaerftConfig(
+isaerft_config = IsaerftConfig(
     target_hooks=[
         (sae_release, model_sae_id),  # Match the SAE we loaded
     ],
@@ -66,7 +67,7 @@ config = IsaerftConfig(
 )
 
 # Create IsaerftPeft model
-peft_model = IsaerftPeft(model, config)
+peft_model = IsaerftPeft(model, isaerft_config)
 #%%
 # Verify trainable parameters
 print("\nTrainable parameters:")
@@ -115,9 +116,14 @@ sweep_config = {
         #     'distribution': 'uniform'
         # },
         'gradient_accumulation_steps': {
-            'values': [2, 4, 8, 16]
+            'values': [4, 8, 16]
         }
-    }
+    },
+    "early_terminate": {
+        "type": "hyperband",
+        "eta": 2,
+        "min_iter":32, # I think this uses logging steps
+     }
 }
 
 # Initialize the sweep
@@ -126,9 +132,15 @@ sweep_id = wandb.sweep(sweep_config, project="isaerft-dpo-sweep-resets")
 def doDPO(config=None):
     # Initialize wandb run for this trial
     with wandb.init(config=config) as run:
+        # Log IsaerftConfig parameters alongside sweep config
+        run_config = wandb.config
+        run_config.update({
+            "isaerft_config": asdict(isaerft_config)
+        }, allow_val_change=True)
+        
         peft_model.reset()
-        # Get hyperparameters for this run
-        config = wandb.config
+        # Use the updated config
+        config = run_config
         
         # Get current timestamp in the desired format
         timestamp = time.strftime("%Y-%m-%d_%H:%M:%S")
@@ -153,7 +165,7 @@ def doDPO(config=None):
             output_dir=save_path + "/" + run_name + "_dpo",
             run_name=run_name + "_dpo", 
             per_device_train_batch_size=4,
-            logging_steps=1,
+            logging_steps=16//config.gradient_accumulation_steps,
             learning_rate=config.learning_rate,
             weight_decay=config.weight_decay,
             # adam_beta1=config.adam_beta1,

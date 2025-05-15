@@ -74,20 +74,6 @@ for name, param in peft_model.named_parameters():
     if param.requires_grad:
         print(f"Name: {name}, Shape: {param.shape}")
 
-# %%
-# client = NeuronpediaClient.NeuronpediaClient(api_key=neuronpedia_api_key)
-
-# description_mapping_dict = {}
-# for name, sae in peft_model.saes.items():
-#     feature_descriptions = client.get_feature_desc_dict(sae.cfg.model_name, sae.cfg.neuronpedia_id.split('/')[1])
-#     for name, param in peft_model.named_parameters():
-#         if not param.requires_grad:
-#             continue
-#         import pdb;pdb.set_trace()
-#         print(f"Name: {name}, Shape: {param.shape}")
-#         param_name_to_description = {f'{name}/{element["index"]}':element['description'] for element in feature_descriptions}
-#         description_mapping_dict.update(param_name_to_description)
-
 
 # %%
 myIsaerftIA3 = next(iter(peft_model.trainable_blocks.items()))[1]

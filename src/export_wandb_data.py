@@ -1,48 +1,54 @@
+"""
+EXAMPLE USAGE:
+python -i export_wandb_data.py "/matthewkhoriaty-northwestern-university/isaerft-dpo-sweep-resets/runs/97aubh19" "gemma-scope-2b-pt-res-canonical" "layer_20/width_16k/canonical"
+
+First arg: sweep identifier from wandb.
+Second arg: sae release
+Third arg: sae id
+"""
 #%%
+import sys
 import wandb
 import torch
 from ISaeRFT_Interpreter import ISaeRFT_Interpreter
 from sae_lens import SAE
 #%%
 api = wandb.Api()
-run = api.run("/matthewkhoriaty-northwestern-university/huggingface/runs/fbpiuaue")
+# run = api.run("/matthewkhoriaty-northwestern-university/huggingface/runs/fbpiuaue")
+run = api.run(sys.argv[1])
 history_df = run.history()
 
 # Filter columns to only get the scaling factors, excluding metadata columns
 scaling_factor_cols = [col for col in history_df.columns 
-                      if col.startswith('param/sae.trainable_ia3.scaling_factors/') 
-                      and not any(x in col for x in ['histogram', 'max', 'min', 'mean', 'std', 'shape'])]
+                      if col.startswith('param') 
+                      ]
 #%%
 # Get the last row values for the filtered columns
 last_values = history_df.iloc[-1][scaling_factor_cols]
 #%%
-# corresponding indices
-indices = [int(col.split('/')[-1]) for col in scaling_factor_cols]
+# Create a tensor of zeros with size equal to the number of scaling factors
+last_values_tensor = torch.zeros(len(scaling_factor_cols), dtype=torch.float32)
 
-#%%
-# Create a dictionary mapping indices to values
-index_value_map = dict(zip(indices, last_values))
-
-# Sort by indices
-sorted_indices = sorted(indices)
-last_values_sorted = [index_value_map[i] for i in sorted_indices]
-
-#%%
-# Convert pandas Series to torch tensor
-last_values_tensor = torch.tensor(last_values_sorted, dtype=torch.float32)
+# Fill in the values at their correct indices
+for col, value in zip(scaling_factor_cols, last_values):
+    index = int(col.split('/')[2])
+    last_values_tensor[index] = value
 
 # Initialize SAE and interpreter
-sae = SAE.from_pretrained(release="gemma-scope-2b-pt-res-canonical", sae_id="layer_20/width_16k/canonical", device='cpu')[0]
+# TODO: Get the sae information from the wandb info instead of user args.
+# sae = SAE.from_pretrained(release="gemma-scope-2b-pt-res-canonical", sae_id="layer_20/width_16k/canonical", device='cpu')[0]
+sae = SAE.from_pretrained(release=sys.argv[2], sae_id=sys.argv[3], device='cpu')[0]
 interpreter = ISaeRFT_Interpreter(sae)
 
 # Get interpretations using different methods
-l2_interpretations = interpreter.interpret_bias(last_values_tensor, 'L2', top_k=10, bottom_k=5)
-absolute_interpretations = interpreter.interpret_bias(last_values_tensor, 'absolute', top_k=10, bottom_k=5)
+# import pdb;pdb.set_trace()
+# l2_interpretations = interpreter.interpret_bias(last_values_tensor, 'L2', top_k=10, bottom_k=5)
+# absolute_interpretations = interpreter.interpret_bias(last_values_tensor, 'absolute', top_k=10, bottom_k=5)
 
-print("\nL2 Interpretations:")
-print(l2_interpretations)
-print("\nAbsolute Interpretations:")
-print(absolute_interpretations)
+# print("\nL2 Interpretations:")
+# print(l2_interpretations)
+# print("\nAbsolute Interpretations:")
+# print(absolute_interpretations)
 
 #%%
 identity_interpretations = interpreter.interpret_bias(last_values_tensor, 'identity', top_k=10, bottom_k=5)
