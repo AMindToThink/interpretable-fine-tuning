@@ -46,13 +46,16 @@ class IsaerftIA3(nn.Module, BaseTunerLayer):
         self.scale_processor = scale_processor
         self.saes = (sae,) # Tuple so that torch doesn't pull any shenanigans
         self.num_features = sae.cfg.d_sae
-        self.scaling_factors = torch.nn.Parameter(torch.zeros(self.num_features))
+        self.initialize_parameters()
         self._disable_adapters = False
         self.merged_adapters = []
         
         # Initialize Neuronpedia client if API key is available
         self.feature_descriptions = {}
         self._init_neuronpedia()
+    
+    def initialize_parameters(self):
+        self.scaling_factors = torch.nn.Parameter(torch.zeros(self.num_features))
     
     def _init_neuronpedia(self):
         """Initialize Neuronpedia client if API key is available in environment variables."""

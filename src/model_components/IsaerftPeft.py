@@ -237,6 +237,11 @@ class IsaerftModel(BaseTuner):
     def _sanitize_name(self, name):
         """Convert a name with dots to a valid module name by replacing dots with underscores"""
         return name.replace(".", "_").replace("/", "_")
+    
+    def reset(self):
+        """Reset all trainable blocks to their initial state."""
+        for block in self.trainable_blocks.values():
+            block.initialize_parameters()
 
     def setup_trainable_blocks(self):
         """Set up the trainable blocks based on the configuration. Also works as a reset."""

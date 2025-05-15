@@ -104,16 +104,16 @@ sweep_config = {
             'max': 0.1,
             'distribution': 'uniform'
         },
-        'adam_beta1': {
-            'min': 0.8,
-            'max': 0.99,
-            'distribution': 'uniform'
-        },
-        'adam_beta2': {
-            'min': 0.9,
-            'max': 0.999,
-            'distribution': 'uniform'
-        },
+        # 'adam_beta1': {
+        #     'min': 0.8,
+        #     'max': 0.99,
+        #     'distribution': 'uniform'
+        # },
+        # 'adam_beta2': {
+        #     'min': 0.9,
+        #     'max': 0.999,
+        #     'distribution': 'uniform'
+        # },
         'gradient_accumulation_steps': {
             'values': [2, 4, 8, 16]
         }
@@ -121,12 +121,12 @@ sweep_config = {
 }
 
 # Initialize the sweep
-sweep_id = wandb.sweep(sweep_config, project="isaerft-dpo-sweep")
+sweep_id = wandb.sweep(sweep_config, project="isaerft-dpo-sweep-resets")
 
 def doDPO(config=None):
     # Initialize wandb run for this trial
     with wandb.init(config=config) as run:
-        peft_model.setup_trainable_blocks()
+        peft_model.reset()
         # Get hyperparameters for this run
         config = wandb.config
         
@@ -153,13 +153,13 @@ def doDPO(config=None):
             output_dir=save_path + "/" + run_name + "_dpo",
             run_name=run_name + "_dpo", 
             per_device_train_batch_size=4,
-            logging_steps=2,
+            logging_steps=1,
             learning_rate=config.learning_rate,
             weight_decay=config.weight_decay,
-            adam_beta1=config.adam_beta1,
-            adam_beta2=config.adam_beta2,
+            # adam_beta1=config.adam_beta1,
+            # adam_beta2=config.adam_beta2,
             do_eval=False,  # Disable evaluation
-            max_steps=4,#500//config.gradient_accumulation_steps,
+            max_steps=100,  # Fixed number of steps regardless of gradient accumulation
             gradient_accumulation_steps=config.gradient_accumulation_steps,
             bf16=True,
             logging_first_step=True,
