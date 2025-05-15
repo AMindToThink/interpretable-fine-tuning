@@ -1,12 +1,13 @@
 import torch
 from typing import Callable
 from peft.tuners.tuners_utils import BaseTunerLayer
+import torch.nn as nn
 
 def grad_1_abs(x):
     """A version of absolute value which has a gradient of 1 when x_i = 0 instead of 0. Necessary so that we can initialize our parameters to 0 without losing all our gradients."""
     return torch.where(x < 0, -x, x)
 
-class IsaerftIA3(BaseTunerLayer):
+class IsaerftIA3(nn.Module, BaseTunerLayer):
     # All names of layers that may contain adapter weights
     adapter_layer_names = ("scaling_factors",)
 
@@ -23,7 +24,8 @@ class IsaerftIA3(BaseTunerLayer):
             >>> output = layer(x)  # Shape: (32, 512), initially equal to x since scaling_factors starts as ones
 
         """
-        super().__init__()
+        nn.Module.__init__(self)
+        BaseTunerLayer.__init__(self)
         self.name = name
         self.scale_processor = scale_processor
         assert num_features > 0 and int(num_features) == num_features, "SAEs have a positive integer number of features. Probably a number like 16k or 32k."

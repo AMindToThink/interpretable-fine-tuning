@@ -147,14 +147,24 @@ def doDPO():
         run_name=run_name + "_dpo", 
         per_device_train_batch_size=4,
         logging_steps=5,
-        learning_rate=5e-3,
+        learning_rate=1e-2,
         max_steps=5000,
-        gradient_accumulation_steps=2,
+        gradient_accumulation_steps=4,
         bf16=True,
         logging_first_step=True,
         report_to="wandb",
         beta=0.1,  # DPO-specific parameter controlling deviation from reference model
-        loss_type="sigmoid"  # Default DPO loss type
+        loss_type="sigmoid",  # Default DPO loss type
+        # Add evaluation settings
+        eval_steps=100,  # Evaluate every 100 steps
+        eval_strategy="steps",
+        save_strategy="steps",
+        save_steps=100,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
+        # Enable generation during evaluation
+        generate_during_eval=True
     )
 
     # Initialize DPO trainer

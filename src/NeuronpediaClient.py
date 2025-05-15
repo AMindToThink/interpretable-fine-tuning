@@ -1,6 +1,6 @@
 import requests
 from typing import Optional, Dict, Any
-
+import json
 class NeuronpediaClient:
     """Client for fetching feature descriptions from Neuronpedia API."""
     
@@ -15,6 +15,19 @@ class NeuronpediaClient:
         self.base_url = base_url    
         self.headers = {"X-Api-Key": api_key}
     
+    def get_feature_desc_dict(self, model_id: str, sae_id: str):
+        request_result = requests.get(
+            "https://www.neuronpedia.org/api/explanation/export",
+            params={
+            "modelId": model_id,
+            "saeId": sae_id
+            }
+        )
+        dict_result = json.loads(request_result.text)
+        
+        return dict_result
+
+
     def get_feature(self, index: int, neuronpedia_id:str='', model_id: str='', layer: str='') -> Dict[str, Any]:
         """
         Fetch feature data from Neuronpedia.
