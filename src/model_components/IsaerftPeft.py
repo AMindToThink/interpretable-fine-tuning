@@ -254,7 +254,7 @@ class IsaerftModel(BaseTuner):
             # Create either an IA3 block or ResidualBlock based on the config
             if config.ia3:
                 block = IsaerftIA3(
-                    num_features=feature_dim,
+                    sae=sae,
                     name=f"ia3_block_{sanitized_name}"
                 ).to(self.device)
             else:

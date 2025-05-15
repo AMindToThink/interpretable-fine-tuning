@@ -1,3 +1,4 @@
+# TODO: allow for reporting with multiple components at once. Right now, since there's only one function for getting descriptions, you can only describe one component
 import wandb
 import torch
 import numpy as np
@@ -9,17 +10,18 @@ class PEFTParameterTrackingCallback(TrainerCallback):
     Optimized for tracking small parameter vectors where each element is important.
     """
     
-    def __init__(self, peft_param_prefix=None, param_desc=None):
+    def __init__(self, peft_param_prefix=None, get_param_desc=None):
         """
         Args:
             peft_param_prefix (list, optional): List of parameter name prefixes to track.
                 If None, will use common PEFT parameter prefixes.
-            param_desc (dict, optional): Dictionary mapping param keys to descriptions.
+            get_param_desc (callable, optional): Function that takes param_name and index tuple
+                and returns a description string or None.
         """
         self.peft_param_prefix = peft_param_prefix or ["lora", "adapter", "prefix", "prompt", "ia3"]
         # Keep track of parameters we've seen to maintain consistent tracking
         self.tracked_params = {}
-        self.param_desc = param_desc or {}
+        self.get_param_desc = get_param_desc or (lambda _: None)
     
     def _is_peft_param(self, param_name):
         """Check if parameter is a PEFT parameter based on naming."""
@@ -50,8 +52,8 @@ class PEFTParameterTrackingCallback(TrainerCallback):
             param_dict = {}
             for i, value in enumerate(param_data):
                 base_param_i_name = f'param/{name}/{i}'
-                desc = self.param_desc.get(base_param_i_name, "")
-                param_name = f"{base_param_i_name}/{desc}"
+                desc = self.get_param_desc((i,))
+                param_name = f"{base_param_i_name}" if desc is None else f"{base_param_i_name}/{desc}"
                 param_dict[param_name] = float(value)
             
             wandb.log(param_dict, step=0)
@@ -72,8 +74,8 @@ class PEFTParameterTrackingCallback(TrainerCallback):
                 # Log each individual parameter value
                 for i, value in enumerate(param_data):
                     base_param_i_name = f"param/{name}/{i}"
-                    desc = self.param_desc.get(base_param_i_name, "")
-                    param_name = f"{base_param_i_name}/{desc}"
+                    desc = self.get_param_desc((i,))
+                    param_name = f"{base_param_i_name}" if desc is None else f"{base_param_i_name}/{desc}"
                     param_dict[param_name] = float(value)
                 
                 # If parameter has a gradient, track that too
@@ -81,8 +83,8 @@ class PEFTParameterTrackingCallback(TrainerCallback):
                     grad_data = param.grad.detach().cpu().numpy().flatten()
                     for i, value in enumerate(grad_data):
                         base_grad_i_name = f"grad/{name}/{i}"
-                        desc = self.param_desc.get(f"param/{name}/{i}", "")
-                        grad_name = f"{base_grad_i_name}/{desc}"
+                        desc = self.get_param_desc((i,))
+                        grad_name = f"{base_grad_i_name}" if desc is None else f"{base_grad_i_name}/{desc}"
                         param_dict[grad_name] = float(value)
         
         # Log all the values

@@ -53,48 +53,54 @@ class NeuronpediaClient:
         response.raise_for_status()
         return response.json()
     
-    def get_description(self, model_id: str, layer: str, index: int, 
-                       preferred_model: str = "claude-3-5-sonnet-20240620") -> Optional[str]:
-        """
-        Get the auto-generated description for a feature.
+    # def get_description(self, model_id: str, layer: str, index: int, 
+    #                    preferred_model: str = "claude-3-5-sonnet-20240620") -> Optional[str]:
+    #     """
+    #     Get the auto-generated description for a feature.
         
-        Args:
-            model_id: The model ID (e.g., 'gpt2-small')
-            layer: The layer/SAE ID (e.g., '0-res-jb')
-            index: The feature index
-            preferred_model: Preferred model for the explanation (defaults to Claude)
+    #     Args:
+    #         model_id: The model ID (e.g., 'gpt2-small')
+    #         layer: The layer/SAE ID (e.g., '0-res-jb')
+    #         index: The feature index
+    #         preferred_model: Preferred model for the explanation (defaults to Claude)
             
-        Returns:
-            The description string, or None if no description is found
+    #     Returns:
+    #         The description string, or None if no description is found
             
-        Example:
-            >>> client = NeuronpediaClient("your-api-key")
-            >>> desc = client.get_description("gpt2-small", "0-res-jb", 14057)
-            >>> print(desc)
-            "references to \"Jedi\" in the context of Star Wars, particularly \"Return of the Jedi\"."
-        """
-        try:
-            feature = self.get_feature(model_id, layer, index)
+    #     Example:
+    #         >>> client = NeuronpediaClient("your-api-key")
+    #         >>> desc = client.get_description("gpt2-small", "0-res-jb", 14057)
+    #         >>> print(desc)
+    #         "references to \"Jedi\" in the context of Star Wars, particularly \"Return of the Jedi\"."
+    #     """
+    #     try:
+    #         feature = self.get_feature(model_id, layer, index)
             
-            # First try to get description from preferred model
-            for explanation in feature.get('explanations', []):
-                if explanation.get('explanationModelName') == preferred_model:
-                    return explanation.get('description')
+    #         # First try to get description from preferred model
+    #         for explanation in feature.get('explanations', []):
+    #             if explanation.get('explanationModelName') == preferred_model:
+    #                 return explanation.get('description')
             
-            # If preferred model not found, return first available description
-            if feature.get('explanations'):
-                return feature['explanations'][0].get('description')
+    #         # If preferred model not found, return first available description
+    #         if feature.get('explanations'):
+    #             return feature['explanations'][0].get('description')
                 
-            return None
+    #         return None
             
-        except (requests.exceptions.RequestException, KeyError) as e:
-            print(f"Error fetching description: {e}")
-            return None
+    #     except (requests.exceptions.RequestException, KeyError) as e:
+    #         print(f"Error fetching description: {e}")
+    #         return None
 
 # Example usage:
 if __name__ == "__main__":
     import sys
-    api_key = sys.argv[1] 
+    api_key = sys.argv[1]
     client = NeuronpediaClient(api_key)
-    description = client.get_description("gpt2-small", "0-res-jb", 14057)
-    print(f"Feature description: {description}")
+    
+    # Test get_feature
+    feature = client.get_feature(14057, model_id="gpt2-small", layer="0-res-jb")
+    print(f"Feature data: {feature}")
+    
+    # Test get_feature_desc_dict
+    feature_dict = client.get_feature_desc_dict("gpt2-small", "0-res-jb")
+    print(f"Feature dict: {feature_dict}")

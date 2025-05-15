@@ -32,6 +32,9 @@ from copy import deepcopy
 from torch import Tensor
 from transformer_lens.hook_points import HookPoint
 
+import NeuronpediaClient
+#%%
+neuronpedia_api_key = os.environ['NEURONPEDIA_API_KEY']
 # %%
 save_path = 'results/IA3_Results/isaerft'
 
@@ -64,7 +67,7 @@ config = IsaerftConfig(
 
 # Create IsaerftPeft model
 peft_model = IsaerftPeft(model, config)
-
+#%%
 # Verify trainable parameters
 print("\nTrainable parameters:")
 for name, param in peft_model.named_parameters():
@@ -72,9 +75,25 @@ for name, param in peft_model.named_parameters():
         print(f"Name: {name}, Shape: {param.shape}")
 
 # %%
-tracking_callback = PEFTParameterTrackingCallback(peft_param_prefix=['trainable_blocks'])
-histogram_callback = PEFTParameterHistogramCallback(peft_param_prefix=['trainable_blocks'])
+client = NeuronpediaClient.NeuronpediaClient(api_key=neuronpedia_api_key)
 
+description_mapping_dict = {}
+for name, sae in peft_model.saes.items():
+    feature_descriptions = client.get_feature_desc_dict(sae.cfg.model_name, sae.cfg.neuronpedia_id.split('/')[1])
+    for name, param in peft_model.named_parameters():
+        if not param.requires_grad:
+            continue
+        import pdb;pdb.set_trace()
+        print(f"Name: {name}, Shape: {param.shape}")
+        param_name_to_description = {f'{name}/{element["index"]}':element['description'] for element in feature_descriptions}
+        description_mapping_dict.update(param_name_to_description)
+
+
+# %%
+myIsaerftIA3 = next(iter(peft_model.trainable_blocks.items()))[1]
+tracking_callback = PEFTParameterTrackingCallback(peft_param_prefix=['trainable_blocks'], myIsaerftIA3.)
+histogram_callback = PEFTParameterHistogramCallback(peft_param_prefix=['trainable_blocks'])
+del myIsaerftIA3
 # %%
 wandb.init(project="ISAERFT_visualization")
 
