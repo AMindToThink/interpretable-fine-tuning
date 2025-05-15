@@ -159,7 +159,6 @@ class IsaerftModel(BaseTuner):
             
             # First, create a list of all potential matches without importing
             potential_matches = []
-            
             # Find all matching collections based on release pattern and model
             for collection_name, collection_data in pretrained_saes.items():
                 if (release_pattern in collection_name and 
@@ -191,7 +190,6 @@ class IsaerftModel(BaseTuner):
             for release, sae_id in potential_matches:
                 try:
                     # Import the SAE
-                    # import pdb;pdb.set_trace()
                     sae, _, _ = SAE.from_pretrained(
                         release=release,
                         sae_id=sae_id
@@ -217,7 +215,6 @@ class IsaerftModel(BaseTuner):
     def _target_hooks_to_saes(self, target_hooks):
         # Load the pretrained SAEs YAML file once
         pretrained_saes = self._load_pretrained_saes_yaml()
-
         all_matching_saes = []
         
         # Process each target hook pattern (release, id) pair
