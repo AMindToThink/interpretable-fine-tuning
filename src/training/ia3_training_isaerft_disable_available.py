@@ -6,7 +6,7 @@
 # %autoreload 2
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'  # 
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'  # 
 import torch
 print("number of cuda devices visible: ",  torch.cuda.device_count())  # Should print 1
 
@@ -75,23 +75,23 @@ for name, param in peft_model.named_parameters():
         print(f"Name: {name}, Shape: {param.shape}")
 
 # %%
-client = NeuronpediaClient.NeuronpediaClient(api_key=neuronpedia_api_key)
+# client = NeuronpediaClient.NeuronpediaClient(api_key=neuronpedia_api_key)
 
-description_mapping_dict = {}
-for name, sae in peft_model.saes.items():
-    feature_descriptions = client.get_feature_desc_dict(sae.cfg.model_name, sae.cfg.neuronpedia_id.split('/')[1])
-    for name, param in peft_model.named_parameters():
-        if not param.requires_grad:
-            continue
-        import pdb;pdb.set_trace()
-        print(f"Name: {name}, Shape: {param.shape}")
-        param_name_to_description = {f'{name}/{element["index"]}':element['description'] for element in feature_descriptions}
-        description_mapping_dict.update(param_name_to_description)
+# description_mapping_dict = {}
+# for name, sae in peft_model.saes.items():
+#     feature_descriptions = client.get_feature_desc_dict(sae.cfg.model_name, sae.cfg.neuronpedia_id.split('/')[1])
+#     for name, param in peft_model.named_parameters():
+#         if not param.requires_grad:
+#             continue
+#         import pdb;pdb.set_trace()
+#         print(f"Name: {name}, Shape: {param.shape}")
+#         param_name_to_description = {f'{name}/{element["index"]}':element['description'] for element in feature_descriptions}
+#         description_mapping_dict.update(param_name_to_description)
 
 
 # %%
 myIsaerftIA3 = next(iter(peft_model.trainable_blocks.items()))[1]
-tracking_callback = PEFTParameterTrackingCallback(peft_param_prefix=['trainable_blocks'], myIsaerftIA3.)
+tracking_callback = PEFTParameterTrackingCallback(peft_param_prefix=['trainable_blocks'], get_param_desc=myIsaerftIA3.get_feature_description)
 histogram_callback = PEFTParameterHistogramCallback(peft_param_prefix=['trainable_blocks'])
 del myIsaerftIA3
 # %%
@@ -109,43 +109,43 @@ timestamp = time.strftime("%Y-%m-%d_%H:%M:%S")
 run_name = randomname.get_name() + "_" + timestamp
 
 # %%
-def doSFT():
-    dataset = load_dataset("iamtarun/code_instructions_120k_alpaca", split="train")
+# def doSFT():
+#     dataset = load_dataset("iamtarun/code_instructions_120k_alpaca", split="train")
 
-    # %%
-    def preprocess_function(example):
-        example['prompt'] = example['instruction'] + "\ninput:\n" + example['input']
-        example['completion'] = example['output']
-        return example
+#     # %%
+#     def preprocess_function(example):
+#         example['prompt'] = example['instruction'] + "\ninput:\n" + example['input']
+#         example['completion'] = example['output']
+#         return example
 
-    # %%
-    # make the dataset a prompt-completion dataset https://huggingface.co/docs/trl/en/dataset_formats
-    dataset = dataset.map(preprocess_function)
+#     # %%
+#     # make the dataset a prompt-completion dataset https://huggingface.co/docs/trl/en/dataset_formats
+#     dataset = dataset.map(preprocess_function)
 
-    # %%
-    dataset = dataset.select_columns(['prompt', 'completion'])
-    lets_overfit:bool = False
-    if lets_overfit:
-        batch_size=64
-        small_dataset = dataset.select(range(batch_size))
-    train_dataset = small_dataset if lets_overfit else dataset
-    training_args = SFTConfig(
-        max_length=512,
-        output_dir=save_path + "/" + run_name,
-        run_name=run_name,
-        per_device_train_batch_size=8,
-        logging_steps=50,
-        learning_rate=5e-3,
-        max_steps=5000
+#     # %%
+#     dataset = dataset.select_columns(['prompt', 'completion'])
+#     lets_overfit:bool = False
+#     if lets_overfit:
+#         batch_size=64
+#         small_dataset = dataset.select(range(batch_size))
+#     train_dataset = small_dataset if lets_overfit else dataset
+#     training_args = SFTConfig(
+#         max_length=512,
+#         output_dir=save_path + "/" + run_name,
+#         run_name=run_name,
+#         per_device_train_batch_size=8,
+#         logging_steps=50,
+#         learning_rate=5e-3,
+#         max_steps=5000
 
-    )
-    trainer = SFTTrainer(
-        peft_model,
-        train_dataset=train_dataset,
-        args=training_args,
-        callbacks=[tracking_callback, histogram_callback, CodeCarbonCallback()]
-    )
-    trainer.train()
+#     )
+#     trainer = SFTTrainer(
+#         peft_model,
+#         train_dataset=train_dataset,
+#         args=training_args,
+#         callbacks=[tracking_callback, histogram_callback]
+#     )
+#     trainer.train()
 
 def doDPO():
     # Initialize wandb project
@@ -155,6 +155,11 @@ def doDPO():
 
     # Load a preference dataset for DPO training
     dataset = load_dataset("trl-internal-testing/hh-rlhf-helpful-base-trl-style")
+    
+    # Verify dataset structure
+    print(f"Dataset keys: {dataset.keys()}")
+    print(f"Train dataset size: {len(dataset['train'])}")
+    print(f"Test dataset size: {len(dataset['test'])}")
 
     if tokenizer.chat_template is None:
         tokenizer.chat_template = SIMPLE_CHAT_TEMPLATE
@@ -165,8 +170,10 @@ def doDPO():
         output_dir=save_path + "/" + run_name + "_dpo",
         run_name=run_name + "_dpo", 
         per_device_train_batch_size=4,
-        logging_steps=5,
+        logging_steps=3,
         learning_rate=1e-2,
+        do_eval=True,
+        per_device_eval_batch_size=4,
         max_steps=5000,
         gradient_accumulation_steps=4,
         bf16=True,
@@ -175,15 +182,13 @@ def doDPO():
         beta=0.1,  # DPO-specific parameter controlling deviation from reference model
         loss_type="sigmoid",  # Default DPO loss type
         # Add evaluation settings
-        eval_steps=100,  # Evaluate every 100 steps
+        eval_steps=2,  # Evaluate every 100 steps. Temporarily set to 2 for debugging purposes.
         eval_strategy="steps",
         save_strategy="steps",
         save_steps=100,
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
-        # Enable generation during evaluation
-        generate_during_eval=True
     )
 
     # Initialize DPO trainer
@@ -193,9 +198,9 @@ def doDPO():
         train_dataset=dataset["train"],
         eval_dataset=dataset["test"],
         processing_class=tokenizer,
-        callbacks=[tracking_callback, histogram_callback, CodeCarbonCallback()]
+        #callbacks=[tracking_callback, histogram_callback]
     )
-
+    # TODO: get evaluation working. It is broken because I'm using a peftmodel.
     # Train the model
     trainer.train()
 
