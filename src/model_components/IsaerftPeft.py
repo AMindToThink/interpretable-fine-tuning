@@ -48,6 +48,7 @@ def resid_hook(sae_acts, hook, residual_block):
 
 class IsaerftModel(BaseTuner):
     """Implementation of the ISAERFT model"""
+    # TODO: would be better if I used a list of hooks plus the context manager instead of permanently adding them. 
     def __init__(self, model, config, adapter_name):
         super().__init__(model=model, peft_config=config, adapter_name=adapter_name)
         self.model = model
@@ -59,6 +60,7 @@ class IsaerftModel(BaseTuner):
         
         # Store SAEs that have been added to the model
         self.saes = {}
+        self.trainable_blocks = nn.ModuleDict()  
         
         # Initialize adapter state
         self._adapter_layers_enabled = True
@@ -237,10 +239,13 @@ class IsaerftModel(BaseTuner):
         return name.replace(".", "_").replace("/", "_")
 
     def setup_trainable_blocks(self):
-        """Set up the trainable blocks based on the configuration"""
+        """Set up the trainable blocks based on the configuration. Also works as a reset."""
         config = self.peft_config['default']
         
-        self.trainable_blocks = nn.ModuleDict()
+        # Clear existing state
+        self.remove_hooks()  # Remove existing hooks
+        self.saes = {}  # Clear the SAEs dictionary
+        self.trainable_blocks = nn.ModuleDict()  # Create fresh ModuleDict
         
         # Process each target hook pattern (release, id) pair
         all_matching_saes = self._target_hooks_to_saes(target_hooks=config.target_hooks)
@@ -424,6 +429,8 @@ class IsaerftPeft(PeftModel):
             if param.requires_grad:
                 trainable_params += num_params
         return trainable_params, all_param
+
+
 
 #%%
 if __name__ == "__main__":

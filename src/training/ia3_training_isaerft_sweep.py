@@ -74,19 +74,6 @@ for name, param in peft_model.named_parameters():
     if param.requires_grad:
         print(f"Name: {name}, Shape: {param.shape}")
 
-# %%
-# client = NeuronpediaClient.NeuronpediaClient(api_key=neuronpedia_api_key)
-
-# description_mapping_dict = {}
-# for name, sae in peft_model.saes.items():
-#     feature_descriptions = client.get_feature_desc_dict(sae.cfg.model_name, sae.cfg.neuronpedia_id.split('/')[1])
-#     for name, param in peft_model.named_parameters():
-#         if not param.requires_grad:
-#             continue
-#         import pdb;pdb.set_trace()
-#         print(f"Name: {name}, Shape: {param.shape}")
-#         param_name_to_description = {f'{name}/{element["index"]}':element['description'] for element in feature_descriptions}
-#         description_mapping_dict.update(param_name_to_description)
 
 
 # %%
@@ -139,6 +126,7 @@ sweep_id = wandb.sweep(sweep_config, project="isaerft-dpo-sweep")
 def doDPO(config=None):
     # Initialize wandb run for this trial
     with wandb.init(config=config) as run:
+        peft_model.setup_trainable_blocks()
         # Get hyperparameters for this run
         config = wandb.config
         
@@ -165,13 +153,13 @@ def doDPO(config=None):
             output_dir=save_path + "/" + run_name + "_dpo",
             run_name=run_name + "_dpo", 
             per_device_train_batch_size=4,
-            logging_steps=3,
+            logging_steps=2,
             learning_rate=config.learning_rate,
             weight_decay=config.weight_decay,
             adam_beta1=config.adam_beta1,
             adam_beta2=config.adam_beta2,
             do_eval=False,  # Disable evaluation
-            max_steps=500//config.gradient_accumulation_steps,
+            max_steps=4,#500//config.gradient_accumulation_steps,
             gradient_accumulation_steps=config.gradient_accumulation_steps,
             bf16=True,
             logging_first_step=True,
