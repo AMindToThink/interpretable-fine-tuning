@@ -6,7 +6,7 @@
 # %autoreload 2
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'  # 
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'  # 
 import torch
 print("number of cuda devices visible: ",  torch.cuda.device_count())  # Should print 1
 
