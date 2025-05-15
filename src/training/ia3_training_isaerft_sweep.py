@@ -6,7 +6,7 @@
 # %autoreload 2
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'  # 
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'  # 
 import torch
 print("number of cuda devices visible: ",  torch.cuda.device_count())  # Should print 1
 
@@ -53,8 +53,9 @@ model = HookedSAETransformer.from_pretrained(model_name, device=device).to(devic
 print(f"Model loaded: {model.cfg.model_name}")
 
 # %%
-sae_release = "gemma-scope-2b-pt-res-canonical"
-model_sae_id = 'layer_20/width_16k/canonical'
+
+sae_release = "gemma-2-2b-res-matryoshka-dc"
+model_sae_id = "blocks.20.hook_resid_post"
 
 # %%
 # Create IsaerftConfig
@@ -105,29 +106,29 @@ sweep_config = {
             'max': 0.1,
             'distribution': 'uniform'
         },
-        # 'adam_beta1': {
-        #     'min': 0.8,
-        #     'max': 0.99,
-        #     'distribution': 'uniform'
-        # },
-        # 'adam_beta2': {
-        #     'min': 0.9,
-        #     'max': 0.999,
-        #     'distribution': 'uniform'
-        # },
+        'adam_beta1': {
+            'min': 0.8,
+            'max': 0.99,
+            'distribution': 'uniform'
+        },
+        'adam_beta2': {
+            'min': 0.9,
+            'max': 0.99999,
+            'distribution': 'inv_log_uniform_values'
+        },
         'gradient_accumulation_steps': {
-            'values': [4, 8, 16]
+            'values': [16],#[4, 8, 16]
         }
     },
-    "early_terminate": {
-        "type": "hyperband",
-        "eta": 2,
-        "min_iter":32, # I think this uses logging steps
-     }
+    # "early_terminate": {
+    #     "type": "hyperband",
+    #     "eta": 2,
+    #     "min_iter":32, # I think this uses logging steps
+    #  }
 }
 
 # Initialize the sweep
-sweep_id = wandb.sweep(sweep_config, project="isaerft-dpo-sweep-resets")
+sweep_id = wandb.sweep(sweep_config, project="isaerft-dpo-sweep-matryoshka")
 
 def doDPO(config=None):
     # Initialize wandb run for this trial
@@ -168,10 +169,10 @@ def doDPO(config=None):
             logging_steps=16//config.gradient_accumulation_steps,
             learning_rate=config.learning_rate,
             weight_decay=config.weight_decay,
-            # adam_beta1=config.adam_beta1,
-            # adam_beta2=config.adam_beta2,
+            adam_beta1=config.adam_beta1,
+            adam_beta2=config.adam_beta2,
             do_eval=False,  # Disable evaluation
-            max_steps=100,  # Fixed number of steps regardless of gradient accumulation
+            max_steps=30,  # Fixed number of steps regardless of gradient accumulation
             gradient_accumulation_steps=config.gradient_accumulation_steps,
             bf16=True,
             logging_first_step=True,
