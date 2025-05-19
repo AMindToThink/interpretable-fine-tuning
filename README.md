@@ -1,18 +1,6 @@
-# Unfortunately unusable until I finish making IsaerftModel (in IsaerftPeft.py) extend BaseTuner. Please stand by.
 
-In-progress experimentation into whether trained components that act on SAE-latents can fine-tune models in a way that results in easy to understand algorithms (diffs).
-
-I made this repo public before it is really ready so I can include it with my applicaiton to Neel Nanda's MATS.
+Researchers are using SAE latents to steer model behaviors, yet human-designed selection algorithms are unlikely to reach any sort of optimum for steering tasks such as SAE-based unlearning or helpfulness steering. Inspired by the [Bitter Lesson](http://www.incompleteideas.net/IncIdeas/BitterLesson.html), I have decided to research gradient-based optimization of steering vectors. It should be possible to add trained components into SAEs that act on the latents. These trained components could learn optimal values and algorithms, and if we chose their structure carefully, they can retain the interpretable properties of the SAE latent itself. I call these fine-tuning methods Interpretable Sparse Autoencoder Representation Fine Tuning or “ISaeRFT”.
 
 
-src/model_components has the ISaeRFT components and especially src/model_components/IsaerftPeft.py and src/model_components/IsaerftConfig.py, which are the scripts that allow Huggingface's Trainers to act on them. 
 
-Right now, only ISaeRFT config with depth=-1 has been tested (indicating learning an added steering vector). That's training a BiasOnly.py via ResidualBlock.py.
-
-The other src/model_components scripts are modules which would be interesting if put into SAEs as trainable parameters.
-
-src/ISaeRFT_Interpreter.py works with src/NeuronpediaClient.py to take a component and interpret what's changed. Right now, only works for BiasOnly (until I can figure out Attribution Patching).
-
-Check out src/training/orpo_isaerft_gemma.py for an example of the training in action.
-
-Read more [here](https://docs.google.com/document/d/1uttDTD16hWF8UriLnMjVOkA-8Lu8-QaAey7560gEVYI/edit?tab=t.0#heading=h.emb46dpogmp)
+See [here](https://www.lesswrong.com/posts/xZkBDAgQGqm6tvCvy/interpretable-fine-tuning-research-update-and-working) for more.

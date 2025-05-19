@@ -114,7 +114,7 @@ sweep_config = {
         'adam_beta2': {
             'min': 0.9,
             'max': 0.99999,
-            'distribution': 'inv_log_uniform_values'
+            'distribution': 'inv_log_uniform_values'# todo: change this to log_uniform_values, which might sample more from the high end. I'm not sure.
         },
         'gradient_accumulation_steps': {
             'values': [16],#[4, 8, 16]
